@@ -83,6 +83,7 @@ arm.setup_fk_spaceswitch_arm(jnts)
 def test():
 	foo = "this is var to test"
 	testnumber = 12
+	print testnumber
 	print foo
 	return foo
 
