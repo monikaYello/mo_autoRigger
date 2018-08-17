@@ -2,7 +2,6 @@ import pymel.core as pm
 import moRig_settings as settings
 import moRig_utils as utils
 from mo_Utils.mo_logging import *
-reload(utils)
 
 #log_debug('aAimLocsAndTargets is %s' % aAimLocsAndTargets)
 def makeProxySkeletonFromSaveNode():
