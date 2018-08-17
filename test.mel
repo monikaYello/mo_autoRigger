@@ -1,0 +1,653 @@
+global proc abRTSkeletonizeProxy(){
+	// creates a skeleton from a skeleton proxy
+	
+	abRTDisableProblemFeatures(true);
+	
+	if (!(`objExists "skeleton_proxy_grpLoc"`)){
+		warning "You need to create a proxy skeleton first.";
+		return;
+	}
+	
+	// save the proxy
+	if (int(abRTGetGlobal("autoSaveSkeleton")))
+		abRTSaveProxySkeleton();
+	
+	string $aJntConnections[] = abRTGetJointConnectionsArray(true);
+	
+	string $subStr, $aSub[], $aNames[], $loc, $tGrp, $obj, $aJnts[], $jnt, $aStr[], $rootJnt, $hipJnt, $baseName, $prefix, $aJntsToMirror[], $elbow, $clavicle, $eye, $upArm, $upLeg, $knee, $wrist, $ankle, $ball, $aHeadNeck[], $aFingers[], $aFingerJnts[], $aToes[], $aToeJnts[], $aMidSpineJnts[], $spineHi, $spineEnd;
+	string $cJntName, $aJaw[];
+	int $i, $k, $end, $nonExistantLoc, $int, $ind;
+	
+	// throw warning if pv snap att won't work
+	string $lfRotInfoStr, $rtRotInfoStr, $tLimbName;
+	float $aTrans[], $aTransLast[], $flt;
+	float $pvCheckTol = .001;
+	int $showWarning = false;
+	int $saveArmProxyInfo = false;
+	int $saveLegProxyInfo = false;
+	int $buildInProxyPose = false;
+	
+	$aFingerJnts = {"index_a","index_b","index_c","index_d","middle_a","middle_b","middle_c","middle_d","ringCup","ring_a","ring_b","ring_c","ring_d","pinkyCup","pinky_a","pinky_b","pinky_c","pinky_d"};
+	$aToeJnts = {"bigToe_a","bigToe_b","bigToe_c","longToe_a","longToe_b","longToe_c","middleToe_a","middleToe_b","middleToe_c","ringToe_a","ringToe_b","ringToe_c","pinkyToe_a","pinkyToe_b","pinkyToe_c"};
+	
+	string $aPvLocCheck[] = {"1&arm&lf_upArm_loc&lf_elbow_loc&lf_wrist_loc","0&leg&lf_upLeg_loc&lf_knee_loc&lf_ankle_loc&lf_ball_loc&lf_toe_loc"}; // form of "axisThatItemsMustShare&limbName&item1&item2&item3&etc"
+	
+	for ($i=0;$i<size($aPvLocCheck);$i++){
+		
+		$aStr = stringToStringArray($aPvLocCheck[$i], "&");
+		
+		if (size($aStr) <= 1) continue;
+		
+		$ind = int($aStr[0]); // index to compare loc translations upon -- 0 = x, 1 = y, 2 = z
+		$tLimbName = $aStr[1]; // "leg" or "arm"
+		
+		for ($k=3;$k<size($aStr);$k++){
+			
+			$aTrans = `xform -q -ws -rp $aStr[$k]`;
+			$aTransLast = `xform -q -ws -rp $aStr[$k-1]`;
+			
+			if (abs($aTrans[$ind] - $aTransLast[$ind]) > $pvCheckTol){
+				
+				$showWarning = true;
+				
+				if ($tLimbName == "arm")
+					$saveArmProxyInfo = true;
+				else if ($tLimbName == "leg")
+					$saveLegProxyInfo = true;
+				
+				break;
+			}
+		}
+	}
+	
+	if (!$showWarning){
+		
+		// check for rotations on hand_grpLoc -- need to showWarning (and save proxy data) if there are any
+		$aTrans = `getAttr "lf_hand_grpLoc.r"`;
+		
+		for ($flt in $aTrans){
+			if ($flt != 0){
+				$showWarning = true;
+				$saveArmProxyInfo = true;
+				break;
+			}
+		}
+	}
+	
+	float $aLfWristTrans[], $aRtWristTrans[], $aLfWristRot[], $aRtWristRot[], $aLfWristPvTrans[], $aRtWristPvTrans[];
+	float $aLfAnkleTrans[], $aRtAnkleTrans[], $aLfAnkleRot[], $aRtAnkleRot[], $aLfAnklePvTrans[], $aRtAnklePvTrans[];
+	
+	if ($showWarning){
+		
+		string $confirm = `confirmDialog -messageAlign center -title "Confirm" -message "The skeleton must be created in a standard T-Pose for all of the rig features to work (including\nIK/FK matching).  However, once the character has been rigged, the proxy pose can be\nrecalled using the \"Reset Character To Proxy Pose\" item in the \"Tools\" menu.\n\nWould you prefer to build the skeleton in the T-Pose (highly recommended)\nor in the current proxy pose?" -button "T-Pose" -button "Proxy Pose" -button "Cancel" -defaultButton "T-Pose" -cancelButton "Cancel" -dismissString "Cancel"`;
+		
+		if ($confirm == "Cancel")
+			return;
+		else if ($confirm == "Proxy Pose")
+			$buildInProxyPose = true;
+		
+		
+		// capture info (wrist trans and rot, and potentional pv loc) to write into joints later
+		// need to follow angle of the wrist joint which will be slightly different than the wrist loc, depending on where the elbow is.
+		
+		
+		if ($saveArmProxyInfo){
+			
+			string $tJntGrp = `group -em -w -name "|tempProxyJointChain"`;
+			
+			// first, get arm pvPositions (while arm is still rotated)
+			$aLfWristPvTrans = abRTCalculatePVPosition({"lf_upArm_loc","lf_elbow_loc","lf_wrist_loc"});
+			$aRtWristPvTrans = abRTCalculatePVPosition({"rt_upArm_loc","rt_elbow_loc","rt_wrist_loc"});
+			
+			// now make targetLocs at the current grpLoc wrist position
+			string $tLfWristTargetLoc = abRTMakeLocatorV2("lf_TempWristTarget_loc", "lf_hand_grpLoc", "");
+			string $tRtWristTargetLoc = abRTMakeLocatorV2("rt_TempWristTarget_loc", "rt_hand_grpLoc", "");
+			
+			abRTSnapToPosition("lf_hand_grpLoc", $tLfWristTargetLoc);
+			abRTSnapToPosition("rt_hand_grpLoc", $tRtWristTargetLoc);
+			
+			// save uparm rotation and zero out grpLocs z and y rot
+			float $lf_tUparmRot[] = `getAttr "lf_arm_grpLoc.r"`;
+			float $rt_tUparmRot[] = `getAttr "rt_arm_grpLoc.r"`;
+			setAttr "lf_arm_grpLoc.r" 0 0 0;
+			
+			// make locs at upArms with frozen rots
+			string $tLfWristLoc = abRTMakeLocator("lf_TempWrist_loc");
+			string $tRtWristLoc = abRTMakeLocator("rt_TempWrist_loc");
+			
+			string $lf_tUpArmLoc = abRTMakeLocator("lf_TempUpArm_loc");
+			string $rt_tUpArmLoc = abRTMakeLocator("lf_TempUpArm_loc");
+			string $lf_tUpArmLocFrzGrp, $rt_tUpArmLocFrzGrp;
+			
+			abRTSnapToPosition("lf_upArm_loc", $lf_tUpArmLoc);
+			abRTSnapToPosition("rt_upArm_loc", $rt_tUpArmLoc);
+			
+			$lf_tUpArmLoc = abRTGroupFreezeReturnObj($lf_tUpArmLoc, 1);
+			$lf_tUpArmLocFrzGrp = firstParentOf($lf_tUpArmLoc);
+			
+			$rt_tUpArmLoc = abRTGroupFreezeReturnObj($rt_tUpArmLoc, 1);
+			$rt_tUpArmLocFrzGrp = firstParentOf($rt_tUpArmLoc);
+			
+			// take care of wrist offset
+			// first, zero out the wrist rot (want to get the offset between the wrist joint and the grpLoc)
+			float $lf_tWristRot[] = `getAttr "lf_hand_grpLoc.r"`;
+			setAttr "lf_hand_grpLoc.r" 0 0 0;
+			
+			// and snap wrist locs to zeroed grpLoc
+			abRTSnapToPosition("lf_hand_grpLoc", $tLfWristLoc);
+			abRTSnapToPosition("rt_hand_grpLoc", $tRtWristLoc);
+			
+			// ok, now make joints
+			$aJnts = abRTDuplicateJointHierarchy({"spine_end_loc","lf_upArm_loc","lf_elbow_loc","lf_wrist_loc"}, {"tSpineEnd_jnt","lf_tUpArm_jnt","lf_tElbow_jnt","lf_tWrist_jnt"}, $tJntGrp);
+			$aStr = `duplicate -name "lf_hand_jnt" $aJnts[3]`;
+			$aStr[0] = abRTParent($aStr[0], $aJnts[3]);
+			$aJnts[size($aJnts)] = $aStr[0];
+			
+			// orient wrist, then other upArm and elbow (different orientations)
+			abRTOrientJoints({$aJnts[3]}, "xyz", "yup");
+			abRTOrientJoints({$aJnts[1],$aJnts[2]}, "xyz", "zdown");
+			
+			// mirror jnts
+			mirrorJoint -mirrorBehavior -searchReplace "lf_" "rt_" $aJnts[1];
+			string $rt_tUpArm = abRTSubstituteAll("lf_", $aJnts[1], "rt_");
+			string $lf_tUpArm, $lf_tWrist, $rt_tWrist;
+			
+			
+			// parent upArm_jnts under respective locs
+			$lf_tUpArm = abRTParent($aJnts[1], $lf_tUpArmLoc);
+			$rt_tUpArm = abRTParent($rt_tUpArm, $rt_tUpArmLoc);
+			
+			// get new wrists
+			$aStr = `listRelatives -c -type joint $lf_tUpArm`;
+			$aStr = `listRelatives -c -type joint $aStr[0]`;
+			$lf_tWrist = $aStr[0];
+			
+			$aStr = `listRelatives -c -type joint $rt_tUpArm`;
+			$aStr = `listRelatives -c -type joint $aStr[0]`;
+			$rt_tWrist = $aStr[0];
+			
+			// parent new locs to wrist locs and snap to wrist rotation, so we now have the offset of the wrist rotation
+			string $tLfWristOffsetLoc = abRTMakeLocatorV2("lf_TempWristOffset_loc", $lf_tWrist, $tLfWristLoc);
+			string $tRtWristOffsetLoc = abRTMakeLocatorV2("rt_TempWristOffset_loc", $rt_tWrist, $tRtWristLoc);
+			
+			// snap back to orig wrist grpLoc position
+			abRTSnapToPosition($tLfWristTargetLoc, $tLfWristLoc);
+			abRTSnapToPosition($tRtWristTargetLoc, $tRtWristLoc);
+			
+			// rotate locs back
+			setAttr ($lf_tUpArmLoc+".r") $lf_tUparmRot[0] $lf_tUparmRot[1] $lf_tUparmRot[2];
+			setAttr ($rt_tUpArmLoc+".r") $rt_tUparmRot[0] $rt_tUparmRot[1] $rt_tUparmRot[2];
+			
+			// get left data
+			$aLfWristTrans = `xform -q -ws -rp $tLfWristLoc`;
+			$aLfWristRot = `xform -q -ws -ro $tLfWristOffsetLoc`;
+			
+			// get right data
+			$aRtWristTrans = `xform -q -ws -rp $tRtWristLoc`;
+			$aRtWristRot = `xform -q -ws -ro $tRtWristOffsetLoc`;
+			
+			
+			delete $tLfWristTargetLoc;
+			delete $tRtWristTargetLoc;
+			delete $tLfWristLoc;
+			delete $tRtWristLoc;
+			delete $tJntGrp;
+			delete $rt_tUpArmLocFrzGrp;
+			delete $lf_tUpArmLocFrzGrp;
+			clear $aJnts;
+			
+			
+			if ($buildInProxyPose){
+				
+				//setAttr "lf_arm_grpLoc.ry" $lf_tUparmRot[1];
+				//setAttr "lf_arm_grpLoc.rz" $lf_tUparmRot[2];
+				//setAttr "lf_hand_grpLoc.r" $lf_tWristRot[0] $lf_tWristRot[1] $lf_tWristRot[2];
+				
+				setAttr "lf_arm_grpLoc.r" $lf_tUparmRot[0] $lf_tUparmRot[1] $lf_tUparmRot[2];
+				setAttr "lf_hand_grpLoc.r" $lf_tWristRot[0] $lf_tWristRot[1] $lf_tWristRot[2];
+			
+			}
+		}
+		
+		
+		if ($saveLegProxyInfo){
+			
+			string $tJntGrp = `group -em -w -name "|tempProxyJointChain"`;
+			
+			// do the same for the legs
+			// first, get arm pvPositions (while leg is still rotated)
+			$aLfAnklePvTrans = abRTCalculatePVPosition({"lf_upLeg_loc","lf_knee_loc","lf_ankle_loc"});
+			$aRtAnklePvTrans = abRTCalculatePVPosition({"rt_upLeg_loc","rt_knee_loc","rt_ankle_loc"});
+			
+			// save uparm rotation and zero out grpLocs z and y rot
+			float $lf_tUplegRot[] = `getAttr "lf_leg_grpLoc.r"`;
+			float $rt_tUplegRot[] = `getAttr "rt_leg_grpLoc.r"`;
+			setAttr "lf_leg_grpLoc.r" 0 0 0;
+			
+			float $lf_tAnkleRot[] = `getAttr "lf_foot_grpLoc.r"`;
+			float $rt_tAnkleRot[] = `getAttr "rt_foot_grpLoc.r"`;
+			setAttr "lf_foot_grpLoc.r" 0 0 0;
+			
+			// make locs at upLegs with frozen rots
+			string $tLfAnkleLoc = abRTMakeLocator("lf_TempAnkleReader_loc");
+			string $tRtAnkleLoc = abRTMakeLocator("rt_TempAnkleReader_loc");
+			
+			string $lf_tUpLegLoc = abRTMakeLocator("lf_TempUpLeg_loc");
+			string $rt_tUpLegLoc = abRTMakeLocator("rt_TempUpLeg_loc");
+			string $lf_tAnkleLoc = abRTMakeLocator("lf_TempAnkle_loc");
+			string $rt_tAnkleLoc = abRTMakeLocator("rt_TempAnkle_loc");
+			string $lf_tUpLegLocFrzGrp, $rt_tUpLegLocFrzGrp, $lf_tAnkleLocFrzGrp, $rt_tAnkleLocFrzGrp;
+			
+			abRTSnapToPosition("lf_upLeg_loc", $lf_tUpLegLoc);
+			abRTSnapToPosition("rt_upLeg_loc", $rt_tUpLegLoc);
+			abRTSnapToPosition("lf_ankle_loc", $lf_tAnkleLoc);
+			abRTSnapToPosition("rt_ankle_loc", $rt_tAnkleLoc);
+			
+			
+			$lf_tUpLegLoc = abRTGroupFreezeReturnObj($lf_tUpLegLoc, 1);
+			$lf_tUpLegLocFrzGrp = firstParentOf($lf_tUpLegLoc);
+			
+			$rt_tUpLegLoc = abRTGroupFreezeReturnObj($rt_tUpLegLoc, 1);
+			$rt_tUpLegLocFrzGrp = firstParentOf($rt_tUpLegLoc);
+			
+			// parent ankle locs to upLegLocs
+			$lf_tAnkleLoc = abRTParent($lf_tAnkleLoc, $lf_tUpLegLoc);
+			$rt_tAnkleLoc = abRTParent($rt_tAnkleLoc, $rt_tUpLegLoc);
+			
+			// grpFrz ankle locs
+			$lf_tAnkleLoc = abRTGroupFreezeReturnObj($lf_tAnkleLoc, 1);
+			$lf_tAnkleLocFrzGrp = firstParentOf($lf_tAnkleLoc);
+			
+			$rt_tAnkleLoc = abRTGroupFreezeReturnObj($rt_tAnkleLoc, 1);
+			$rt_tAnkleLocFrzGrp = firstParentOf($rt_tAnkleLoc);
+			
+			
+			// ok, now make joints
+			$aJnts = abRTDuplicateJointHierarchy({"hip_loc","lf_upLeg_loc","lf_knee_loc","lf_ankle_loc","lf_ball_loc","lf_toe_loc"}, {"tHip_loc","lf_tUpLeg_jnt","lf_tKnee_jnt","lf_tAnkle_jnt","lf_tBall_loc","lf_tToe_loc"}, $tJntGrp);
+			
+			// orient ankle, then other upLeg and knee (different orientations)
+			abRTOrientJoints({$aJnts[3], $aJnts[4]}, "xyz", "ydown");
+			abRTOrientJointBasedOnChildJntPos($aJnts[1], $aJnts[2], {0,0,-1}, "xyz", "ydown", "yup");
+			abRTOrientJointBasedOnChildJntPos($aJnts[2], $aJnts[3], {0,0,1}, "xyz", "yup", "ydown");
+			
+			// mirror jnts
+			mirrorJoint -mirrorBehavior -searchReplace "lf_" "rt_" $aJnts[1];
+			string $rt_tUpLeg = abRTSubstituteAll("lf_", $aJnts[1], "rt_");
+			string $lf_tUpLeg, $lf_tAnkle, $rt_tAnkle, $lf_tKnee, $rt_tKnee;
+			
+			// parent upLeg_jnts under respective locs
+			$lf_tUpLeg = abRTParent($aJnts[1], $lf_tUpLegLoc);
+			$rt_tUpLeg = abRTParent($rt_tUpLeg, $rt_tUpLegLoc);
+			
+			// get new ankles
+			$aStr = `listRelatives -c -type joint $lf_tUpLeg`;
+			$lf_tKnee = $aStr[0];
+			$aStr = `listRelatives -c -type joint $lf_tKnee`;
+			$lf_tAnkle = $aStr[0];
+			
+			$aStr = `listRelatives -c -type joint $rt_tUpLeg`;
+			$rt_tKnee = $aStr[0];
+			$aStr = `listRelatives -c -type joint $rt_tKnee`;
+			$rt_tAnkle = $aStr[0];
+			
+			// temporarily parent ankles to ankle_loc
+			$lf_tAnkle = abRTParent($lf_tAnkle, $lf_tAnkleLoc);
+			$rt_tAnkle = abRTParent($rt_tAnkle, $rt_tAnkleLoc);
+			
+			// rotate locs back
+			setAttr ($lf_tUpLegLoc+".r") $lf_tUplegRot[0] $lf_tUplegRot[1] $lf_tUplegRot[2];
+			setAttr ($rt_tUpLegLoc+".r") $rt_tUplegRot[0] $rt_tUplegRot[1] $rt_tUplegRot[2];
+			setAttr ($lf_tAnkleLoc+".r") $lf_tAnkleRot[0] $lf_tAnkleRot[1] $lf_tAnkleRot[2];
+			setAttr ($rt_tAnkleLoc+".r") $rt_tAnkleRot[0] $rt_tAnkleRot[1] $rt_tAnkleRot[2];
+			
+			// parent ankles back to knees
+			$lf_tAnkle = abRTParent($lf_tAnkle, $lf_tKnee);
+			$rt_tAnkle = abRTParent($rt_tAnkle, $rt_tKnee);
+			
+			// snap locs
+			abRTSnapToPosition($lf_tAnkle, $tLfAnkleLoc);
+			abRTSnapToPosition($rt_tAnkle, $tRtAnkleLoc);
+			
+			// get left data
+			$aLfAnkleTrans = `xform -q -ws -rp $tLfAnkleLoc`;
+			$aLfAnkleRot = `xform -q -ws -ro $tLfAnkleLoc`;
+			
+			// get right data
+			$aRtAnkleTrans = `xform -q -ws -rp $tRtAnkleLoc`;
+			$aRtAnkleRot = `xform -q -ws -ro $tRtAnkleLoc`;
+			
+			delete $tLfAnkleLoc;
+			delete $tRtAnkleLoc;
+			delete $tJntGrp;
+			delete $rt_tUpLegLocFrzGrp;
+			delete $lf_tUpLegLocFrzGrp;
+			clear $aJnts;
+			
+			
+			if ($buildInProxyPose){
+				
+				setAttr "lf_leg_grpLoc.r" $lf_tUplegRot[0] $lf_tUplegRot[1] $lf_tUplegRot[2];
+				setAttr "lf_foot_grpLoc.r" $lf_tAnkleRot[0] $lf_tAnkleRot[1] $lf_tAnkleRot[2];
+			}
+		}
+	}
+	// done with warning
+	
+	
+	string $name = abRTGetGlobal("name");
+	if ($name == "") $name = "abSkel";
+	
+	string $skelGrpName = $name+"_Skeleton_grp";
+	
+	if (objExists($skelGrpName)){
+		warning ("A skeleton with the base name \""+$name+"\" already exists in this scene.  Try another name.");
+		return;
+	}
+	
+	string $skelGrp = `group -em -w -name $skelGrpName`;
+	
+	// first need to create handLoc at wrist loc position
+	$aStr = `duplicate -name "lf_hand_loc" "lf_wrist_loc"`;
+	$aStr = `listRelatives -c -fullPath $aStr[0]`;
+	if (size($aStr) > 0) delete $aStr;
+	
+	
+	
+	for ($i=0;$i<size($aJntConnections);$i++){
+		
+		$subStr = $aJntConnections[$i];
+		$aSub = stringToStringArray($subStr, ">");
+		clear($aNames);
+		$nonExistantLoc = false;
+		
+		if ($i == 0){
+			$tGrp = $skelGrp;
+		}else{
+			
+			// remove the first item from all but the first subArray because it already exists, and we want to parent the rest of the joints in $aSub under it.
+			$baseName = $aSub[0];
+			if (startsWith($aSub[0], "lf")){
+				$prefix = "l";
+				$baseName = `substring $baseName 4 (size($baseName))`;
+			}else{
+				$prefix = "";
+			}
+			
+			$baseName = `substring $baseName 1 (size($baseName) - 4)`;
+			$tGrp = abRTRigNamer($baseName, $prefix, "jnt");
+			$aSub = stringArrayRemoveExact({$aSub[0]}, $aSub);
+			
+		}
+		
+		for ($loc in $aSub){
+			
+			//if (!`objExists $loc`) $nonExistantLoc = true;
+			if (!`objExists $loc`) continue;
+			
+			$baseName = $loc;
+			if (startsWith($loc, "lf")){
+				$prefix = "l";
+				$baseName = `substring $baseName 4 (size($baseName))`;
+			}else{
+				$prefix = "";
+			}
+			
+			// remove "loc" from end of name
+			$baseName = `substring $baseName 1 (size($baseName) - 4)`;
+			$aNames[size($aNames)] = abRTRigNamer($baseName, $prefix, "jnt");
+			$cJntName = $aNames[size($aNames)-1];
+			
+			// keep upJoints for potential split joints and other reasons
+			if ($baseName == "upLeg"){
+				$upLeg = $cJntName;
+			}else if ($baseName == "clavicle"){
+				$clavicle = $cJntName;
+			}else if ($baseName == "knee"){
+				$knee = $cJntName;
+			}else if ($baseName == "eye"){
+				$eye = $cJntName;
+			}else if ($baseName == "upArm"){
+				$upArm = $cJntName;
+			}else if ($baseName == "elbow"){
+				$elbow = $cJntName;
+			}else if ($baseName == "wrist"){
+				// keep wrist to duplicate and make hand jnt
+				$wrist = $cJntName;
+			}else if ($baseName == "neck" || $baseName == "neck_1" || $baseName == "neck_2" || $baseName == "neck_3" || $baseName == "neck_4" || $baseName == "head_a"){
+				// keep head and neck to change orientation for controls
+				$aHeadNeck[size($aHeadNeck)] = $cJntName;
+			}else if ($baseName == "ankle"){
+				$ankle = $cJntName;
+			}else if ($baseName == "ball"){
+				$ball = $cJntName;
+			}else if (abRTGetPosInStrArray($baseName, $aFingerJnts) > 0){
+				$aFingers[size($aFingers)] = $cJntName;
+			}else if (abRTGetPosInStrArray($baseName, $aToeJnts) > 0){
+				$aToes[size($aToes)] = $cJntName;
+			}else if ($baseName == "spine_mid" || $baseName == "spine_mid_1" || $baseName == "spine_mid_2" || $baseName == "spine_mid_3" || $baseName == "spine_mid_4" || $baseName == "spine_mid_5" || $baseName == "spine_mid_6" || $baseName == "spine_mid_7" || $baseName == "spine_mid_8" || $baseName == "spine_mid_9"){
+				$aMidSpineJnts[size($aMidSpineJnts)] = $cJntName;
+			}else if ($baseName == "spine_hi"){
+				$spineHi = $cJntName;
+			}else if ($baseName == "spine_end"){
+				$spineEnd = $cJntName;
+			}else if ($baseName == "jaw_a" || $baseName == "jaw_b" || $baseName == "jaw_c"){
+				$aJaw[size($aJaw)] = $cJntName;
+			}
+		}
+		
+		//if ($nonExistantLoc) continue;
+		$aStr = abRTDuplicateJointHierarchy($aSub, $aNames, $tGrp);
+		
+		// save root joint path
+		if ($i == 0){
+			$hipJnt = $aStr[0];
+			$rootJnt = $aStr[1];
+		}
+	}
+	
+	// parent hip jnt under spine jnt
+	$rootJnt = abRTParent($rootJnt, $skelGrp);
+	$hipJnt = abRTParent($hipJnt, $rootJnt);
+	$aJnts = `listRelatives -ad -fullPath -type joint $rootJnt`;
+	
+	abRTScaleSkeletonJntRadius($aJnts, $hipJnt, false);
+	
+	// orient joints
+	$aJnts = `listRelatives -ad -fullPath -type joint $rootJnt`;
+	$aJnts = stringArrayRemove({$hipJnt}, $aJnts);
+	abRTOrientJoints($aJnts, "xyz", "zdown");
+	
+	// orient special case joints differently
+	abRTOrientJoints($aHeadNeck, "yzx", "zup");
+	abRTOrientJoints({$ankle, $ball}, "xyz", "ydown");
+	abRTOrientJointBasedOnChildJntPos($upLeg, $knee, {0,0,-1}, "xyz", "ydown", "yup");
+	abRTOrientJointBasedOnChildJntPos($knee, $ankle, {0,0,1}, "xyz", "yup", "ydown");
+	
+	// orient jaw joints
+	abRTOrientJoints($aJaw, "yzx", "zdown");
+	
+	// orient fingers and toes
+	if (!$buildInProxyPose) abRTOrientJoints($aFingers, "xzy", "yup");
+	abRTOrientJoints($aToes, "xyz", "yup");
+	
+	// done orienting
+	
+	// add stationary in place parent to eye
+	string $eyeParName, $eyePar;
+	float $aTrans2[], $eyeParOffset;
+	
+	$eyeParOffset = .1;
+	
+	$eyeParName = `substitute "eye" $eye "eyeMover"`;
+	
+	if (objExists($eye)){
+		
+		$aStr = `duplicate -po -n $eyeParName $eye`;
+		$eyePar = $aStr[0];
+		
+		if ($eyeParOffset > 0){
+			
+			// nudge eye back a bit
+			float $aForward[] = abRTFindClosestAxisToWorldRetVector($eyePar, {0.0,0.0,1.0});
+			
+			$aTrans2 = `xform -q -ws -t $spineEnd`;
+			$aTrans = `xform -q -ws -t $eyePar`;
+			
+			for ($i=0;$i<size($aForward);$i++)
+				$aForward[$i] = $aForward[$i] * (-1 * $eyeParOffset * ($aTrans[$i] - $aTrans2[$i]));
+			
+			move -r -os -wd $aForward[0] $aForward[1] $aForward[2] $eyePar;
+		}
+		
+		$eye = abRTParent($eye, $eyePar);
+	}
+	
+	// replace hand joints with duplicate of wrist to preserve alignment and reparent children
+	string $hand, $newWrist;
+	
+	if (`objExists $wrist`){
+		
+		// realign arm joints
+		string $aArmJnts[] = abRTGetHierarchy($clavicle, $wrist, true);
+		abRTOrientJoints($aArmJnts, "xyz", "yup");
+		
+		$aRel = `listRelatives -c -fullPath $wrist`;
+		$hand = $aRel[0];
+		
+		$aStr = `duplicate $wrist`;
+		$newWrist = $aStr[0];
+		$newWrist = abRTParent($newWrist, $wrist);
+		$aRel = `listRelatives -c -fullPath $newWrist`;
+		if (size($aRel) > 0) delete $aRel;
+		
+		$aRel = `listRelatives -c -fullPath $hand`;
+		for ($i=0;$i<size($aRel);$i++){
+			abRTParent($aRel[$i], $newWrist);
+		}
+		
+		delete $hand;
+		abRTRename($newWrist, abRTStripPath($hand));
+		
+	}
+	
+	// reorient the ankle and ball joints if there's y rotation on the footGrploc (ankle group loc)
+	// if ($aLAnkleRot[1] > .001) abRTOrientJoints({$ankle, $ball}, "xyz", "ydown");
+	
+	// mirror the skeleton.  Mirror behavior on clavicle and upleg and plane on eye
+	mirrorJoint -mirrorBehavior -searchReplace "lf_" "rt_" $clavicle;
+	//mirrorJoint -mirrorYZ -searchReplace "lf_" "rt_" $eye;
+	mirrorJoint -mirrorYZ -searchReplace "lf_" "rt_" $eyePar;
+	
+	if ((int(abRTGetGlobal("legMirrorBehavior")))){
+		mirrorJoint -mirrorBehavior -searchReplace "lf_" "rt_" $upLeg;
+	}else{
+		mirrorJoint -mirrorYZ -searchReplace "lf_" "rt_" $upLeg;
+	}
+	
+	// add creation rotation data to upArm and upLeg joints
+	string $mUpArm = abRTSubstituteAll("lf_", $upArm, "rt_");
+	string $mElbow = abRTSubstituteAll("lf_", $elbow, "rt_");
+	string $mWrist = abRTSubstituteAll("lf_", $wrist, "rt_");
+	string $mUpLeg = abRTSubstituteAll("lf_", $upLeg, "rt_");
+	string $mKnee = abRTSubstituteAll("lf_", $knee, "rt_");
+	string $mAnkle = abRTSubstituteAll("lf_", $ankle, "rt_");
+	
+	// insert weight split jnts
+	int $spineWtJntNum = int(abRTGetGlobal("spineJntNum"));
+	int $upArmSplitNum = int(abRTGetGlobal("upArmSplitNum"));
+	int $foreArmSplitNum = int(abRTGetGlobal("foreArmSplitNum"));
+	int $upLegSplitNum = int(abRTGetGlobal("upLegSplitNum"));
+	int $kneeSplitNum = int(abRTGetGlobal("lowLegSplitNum"));
+	
+	
+	if ($spineWtJntNum > 0){
+		
+		// need to get spine jnts -- {$hipJnt, $rootJnt, $midJnt1, [$midJnt2, $midJnt3, ...], $hiJnt, $endJnt}
+		string $aSpineRigCtrlJnts[] = {$hipJnt, $rootJnt};
+		$aSpineRigCtrlJnts = stringArrayCatenate($aSpineRigCtrlJnts, $aMidSpineJnts);
+		$aSpineRigCtrlJnts[size($aSpineRigCtrlJnts)] = $spineHi;
+		$aSpineRigCtrlJnts[size($aSpineRigCtrlJnts)] = $spineEnd;
+		
+		int $makeSpineShaper = int(abRTGetGlobal("addSpineShaper"));
+		
+		abRTMakeSpine($aSpineRigCtrlJnts, $spineWtJntNum, $makeSpineShaper, "", "", false);
+	}
+		
+	abRTSetRootJntAtt("createLimbWtJntsInHierarchy", abRTGetGlobal("createLimbWtJntsInHierarchy"), $name);
+	
+	if ($upArmSplitNum > 0 || $foreArmSplitNum > 0){
+		abRTMakeLimbWeightAndCtrlJnts({$upArm, $elbow, $wrist}, {"upArm", "elbow", "wrist"}, $upArmSplitNum, $foreArmSplitNum, "l", $rootJnt, "arm", "", false);
+		abRTMakeLimbWeightAndCtrlJnts({$mUpArm, $mElbow, $mWrist}, {"upArm", "elbow", "wrist"}, $upArmSplitNum, $foreArmSplitNum, "r", $rootJnt, "arm", "", false);
+	}else{
+		abRTSetRootJntAtt("upArmSplitNum", "0", $name);
+		abRTSetRootJntAtt("foreArmSplitNum", "0", $name);
+	}
+	
+	if ($upLegSplitNum > 0 || $kneeSplitNum > 0){
+		abRTMakeLimbWeightAndCtrlJnts({$upLeg, $knee, $ankle}, {"upLeg", "knee", "ankle"}, $upLegSplitNum, $kneeSplitNum, "l", $rootJnt, "leg", "", false);
+		abRTMakeLimbWeightAndCtrlJnts({$mUpLeg, $mKnee, $mAnkle}, {"upLeg", "knee", "ankle"}, $upLegSplitNum, $kneeSplitNum, "r", $rootJnt, "leg", "", false);
+	}else{
+		abRTSetRootJntAtt("upLegSplitNum", "0", $name);
+		abRTSetRootJntAtt("lowLegSplitNum", "0", $name);
+	}
+	
+	
+	// add creation rotation data to upArm and upLeg joints
+	// add wrist and pv info if arms were rotated out of XZ plane
+	if ($showWarning){
+		
+		if ($saveArmProxyInfo){
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "wristTrans" $upArm;
+			setAttr -type float3 ($upArm+".wristTrans") $aLfWristTrans[0] $aLfWristTrans[1] $aLfWristTrans[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "wristTrans" $mUpArm;
+			setAttr -type float3 ($mUpArm+".wristTrans") $aRtWristTrans[0] $aRtWristTrans[1] $aRtWristTrans[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "wristRot" $upArm;
+			setAttr -type float3 ($upArm+".wristRot") $aLfWristRot[0] $aLfWristRot[1] $aLfWristRot[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "wristRot" $mUpArm;
+			setAttr -type float3 ($mUpArm+".wristRot") $aRtWristRot[0] $aRtWristRot[1] $aRtWristRot[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "wristPvTrans" $upArm;
+			setAttr -type float3 ($upArm+".wristPvTrans") $aLfWristPvTrans[0] $aLfWristPvTrans[1] $aLfWristPvTrans[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "wristPvTrans" $mUpArm;
+			setAttr -type float3 ($mUpArm+".wristPvTrans") $aRtWristPvTrans[0] $aRtWristPvTrans[1] $aRtWristPvTrans[2];
+			
+		}
+		
+		if ($saveLegProxyInfo){
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "ankleTrans" $upLeg;
+			setAttr -type float3 ($upLeg+".ankleTrans") $aLfAnkleTrans[0] $aLfAnkleTrans[1] $aLfAnkleTrans[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "ankleTrans" $mUpLeg;
+			setAttr -type float3 ($mUpLeg+".ankleTrans") $aRtAnkleTrans[0] $aRtAnkleTrans[1] $aRtAnkleTrans[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "ankleRot" $upLeg;
+			setAttr -type float3 ($upLeg+".ankleRot") $aLfAnkleRot[0] $aLfAnkleRot[1] $aLfAnkleRot[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "ankleRot" $mUpLeg;
+			setAttr -type float3 ($mUpLeg+".ankleRot") $aRtAnkleRot[0] $aRtAnkleRot[1] $aRtAnkleRot[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "anklePvTrans" $upLeg;
+			setAttr -type float3 ($upLeg+".anklePvTrans") $aLfAnklePvTrans[0] $aLfAnklePvTrans[1] $aLfAnklePvTrans[2];
+			
+			addAttr -dt float3 -hidden true -keyable false -longName "anklePvTrans" $mUpLeg;
+			setAttr -type float3 ($mUpLeg+".anklePvTrans") $aRtAnklePvTrans[0] $aRtAnklePvTrans[1] $aRtAnklePvTrans[2];
+			
+		}
+		
+	}
+	
+	
+	// delete the proxy
+	if (`objExists skeleton_proxy_grpLoc`) delete skeleton_proxy_grpLoc;
+	
+	// update UI items
+	if (`window -q -ex abRTWin`) abRTClearUIItems();
+	
+	select -clear;
+}

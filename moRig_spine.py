@@ -1,25 +1,27 @@
 import pymel.core as pm
 import mo_Utils.mo_riggUtils as mo_riggUtils
+import moRig_utils as utils
 reload(mo_riggUtils)
 
-def build_skinJnts_spine():
-    startknob = pm.PyNode('Root_knob')
-    endknob = pm.PyNode('Chest_knob')
+def build_skinJnts_spine(startknob, endknob, amount):
     pm.select(clear=1)
-    start_jnt, end_jnt = pm.joint(n='C_spine0_ctrlJnt'), pm.joint(n='C_spineEnd_ctrlJnt')
+
+    start_jnt, end_jnt = pm.joint(n='C_spine01_skinJnt'), pm.joint(n='C_spine%02d_skinJnt'%amount)
+    
     pm.xform(start_jnt, t=pm.xform(startknob, q=1, t=1, ws=1), ws=1)
     pm.xform(end_jnt, t=pm.xform(endknob, q=1, t=1, ws=1), ws=1)
-    mo_riggUtils.splitJnt(4, joints=[start_jnt, end_jnt])
+    
+    mo_riggUtils.splitJnt(amount, joints=[start_jnt, end_jnt])
 
 
-def resampleSpline():
-    amount = 4
+def resampleSpline(amount = 4):
+    
     multiplyer = 1.00/amount
     for i in range(amount):
         knob = pm.sphere(n='spine_knob%02d'%(i+1), r=0.2)
         grp = pm.group(knob, name='spine_grp%02d'%(i+1))
         const = pm.parentConstraint(['Root_knob', 'Chest_knob'], grp, mo=0)
-        print (multiplyer * i )
+        
         pm.setAttr('%s.Root_knobW0'%const, (1-(multiplyer*i)))
         pm.setAttr('%s.Chest_knobW1'%const, (multiplyer*i))
 
@@ -134,7 +136,7 @@ def createStretchSpline(curveObj, volume, worldScale, worldScaleObj, worldScaleA
         pm.select(joints)
         # also create an anim curve which we can use to connnect to the joints to help
         # determine the scaling power in X and Z.  This will be attached to the curve itself
-        pm.mel.js_createCurveControl(curveObj, "scalePower", "pow")
+        utils.createCurveControl(curveObj, "scalePower", "pow")
         # start creating an expression
         expr = ""
         # for each joint, connect the scaleX to the normalizedScale

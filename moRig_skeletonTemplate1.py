@@ -1,3 +1,6 @@
+
+
+
 import pymel.core as pm
 import moRig_settings as settings
 import moRig_utils as utils
@@ -1658,11 +1661,7 @@ def encodeLocStructure(rootLoc, preserveOffsets):
 
 
 
-def skeletonizeProxy(spineWtJntNum='global'):
-    """
-    create skinJnt from proxy
-        :param spineWtJntNum='global': 
-    """
+def skeletonizeProxy():
     # root
     tJntGrp = ''
     aJnts = duplicateJointHierarchy(['spine_grpLoc'],
@@ -1674,9 +1673,31 @@ def skeletonizeProxy(spineWtJntNum='global'):
 
     # spine
 
-    if spineWtJntNum == 'global':
-        spineWtJntNum=int(settings.globalPrefs["spineJntNum"])
     
+    # spine_proxy_names = []
+    # spine_rig_names = []
+    # i=0
+    # spine_proxy_names.append('spine_low_loc')
+    # spine_rig_names.append('C_spine01_skinJnt')
+
+    # spineMidJntsNum = len(pm.ls('spine_mid_*_loc'))
+    # for i in range(spineMidJntsNum):
+    #     spine_proxy_names.append('spine_mid_%s_loc' %(i+1))
+    #     spine_rig_names.append('C_spine%02d_skinJnt'%(i+2))
+
+    # spine_proxy_names.append('spine_hi_loc')
+    # spine_rig_names.append('C_chest01_skinJnt')
+
+    # log_debug('spine names %s'%spine_proxy_names)
+    # log_debug('rig names %s' % spine_rig_names)
+    # aJnts = duplicateJointHierarchy(spine_proxy_names,
+    #                                 spine_rig_names,
+    #                                 tJntGrp)
+
+    # orientJoints(aJnts, "xzy", "yup")
+    # orientJoints([aJnts[-1]], "xzy", "zup")
+
+    spineWtJntNum=int(settings.globalPrefs["spineJntNum"])
     # insert weight split jnts
     upArmSplitNum=int(settings.globalPrefs["upArmSplitNum"])
     foreArmSplitNum=int(settings.globalPrefs["foreArmSplitNum"])
@@ -1701,8 +1722,21 @@ def skeletonizeProxy(spineWtJntNum='global'):
         aSpineRigCtrlJnts.append(str(spineHi))
         aSpineRigCtrlJnts.append(str(spineEnd))
         
-        
-        makeSpine(aSpineRigCtrlJnts, spineWtJntNum, parentTo='C_root_jnt')
+        makeSpineShaper=int(settings.globalPrefs["addSpineShaper"])
+        makeSpine(aSpineRigCtrlJnts, spineWtJntNum, makeSpineShaper, "", "", False)
+
+    #spineJntNum = int(settings.globalPrefs["spineJntNum"])
+
+    # default proxy has 1 spineMidJnt. so we need to split each by half. if spineMidJnts are added
+    # if spineMidJntsNum > 0 :
+    #     splitJntsNum = spineJntNum / spineMidJntsNum
+    # else:
+
+    # splitJnts = utils.splitJnt(spineJntNum, [spine_rig_names[0], spine_rig_names[-1]])
+
+    # rename split joints. start with spine02
+    # for i in range(spineJntNum - 1):
+    #    pm.rename(splitJnts[i], 'C_spine%02d_skinJnt'% (i + 2))
     
 
     #pelvis
@@ -1739,6 +1773,7 @@ def skeletonizeProxy(spineWtJntNum='global'):
                                     neck_rig_names,
                                     tJntGrp)
     orientJoints(aJnts, "xzy", "zup")
+    log_debug('Done skeletonProxy neck')
 
     # jaw and eyes
     tJntGrp = 'C_head01_skinJnt'
@@ -1757,13 +1792,10 @@ def skeletonizeProxy(spineWtJntNum='global'):
     aJnts = duplicateJointHierarchy(["spine_end_loc", "L_arm01_loc", "L_arm02_loc", "L_wrist_loc"],
                                     ["L_clav01_skinJnt", "L_arm01_skinJnt", "L_arm02_skinJnt", "L_hand01_skinJnt"],
                                     tJntGrp)
-    pm.parent(aJnts[0], tJntGrp)
     # orient
     orientJoints([aJnts[3]], "xyz", "ydown")
     # orient wrist, then other upArm and elbow (different orientations)
     orientJoints([aJnts[0], aJnts[1], aJnts[2]], "xzy", "zdown")
-
-    #utils.addTwistJnts(foreArmSplitNum, "L_arm02_skinJnt", "L_hand01_skinJnt")
 
     # Finger
     fingers = ['pinky', 'ring', 'middle', 'index', 'thumb']
@@ -1936,49 +1968,239 @@ def orientJointBasedOnChildJntPos(jnt, childJnt, aXyzCond, orient, trueSecOrient
 
 
 
-def makeSpine(aSpineRigCtrlJnts, spineJntNum, parentTo='C_root_jnt'):
-    
-    # creates spine skinJoints from template joints
+def makeSpine(aSpineRigCtrlJnts,spineJntNum,makeSpineShaper,spineNSGrp,spineGrp,createCtrlJnts):
+    shaperLoc=''
+    aBackRigCtrlJnts=[]
+    aStr=[]
+    jnt=''
+    aRet=[]
+    shaperJnt=''
+    # creates spine joints and weightSpine joints
     # $aSpineRigCtrlJnts = joints on base skeleton to which the spline curve clusters will be parented (no shaper, will be added in this fn)
     # $aSpineRigCtrlJnts = {$hipJnt, $rootJnt, $midJnt1, [$midJnt2, $midJnt3, ...], $hiJnt, $endJnt}
     # $spineJntNum is number of spine jnts to create
-    
-    aStr=[]
+    # $spineNSGrp is the non scaling spine grp
+    # $makeSpineShaper will create a spineShaper if true
+    # if $createCtrlJnts == false, ctrl joints will be deleted and only weight jnts will be created (used for skeleton building)
+    # $spineNSGrp and $spineGrp can be empty if $createCtrlJnts is false
+    # see fn end for return array info
     aTrans=[]
-
-    spineCurveGrp =str(pm.group(em=1,name="C_spineCrv_grp"))
-
-    tLoc = pm.spaceLocator(name="skeletonizeTemp_loc")
-    curveStr="curve -d 3"
+    aTrans2=[]
+    i=0
+    k=0
+    charName= settings.globalPrefs["name"]
+    alpha="abcdefghijklmnopqrstuvwxyz"
+    endJnt=aSpineRigCtrlJnts[- 1]
+    hiJnt=aSpineRigCtrlJnts[- 2]
+    lastMidJnt=aSpineRigCtrlJnts[- 3]
+    rootJnt=aSpineRigCtrlJnts[1]
+    skeletonGrp = str(pm.mel.firstParentOf(rootJnt))
+    if not createCtrlJnts:
+        spineGrp = str(pm.group(em=1,name="tSpineGrp"))
+        # make temp spineGrps
+        spineNSGrp =str(pm.group(em=1,name="tSpineNSGrp"))
+        
+    if makeSpineShaper:
+        shaperLoc=pm.spaceLocator(name="shaper_loc")
+        pm.parentConstraint(lastMidJnt,hiJnt,shaperLoc)
+        # need to add $shaperLoc to aBackRigCtrlJnts
+        for i in range(0,len(aSpineRigCtrlJnts) - 2):
+            aBackRigCtrlJnts[i]=aSpineRigCtrlJnts[i]
+            
+        aBackRigCtrlJnts.append(shaperLoc)
+        aBackRigCtrlJnts.append(hiJnt)
+        aBackRigCtrlJnts.append(endJnt)
+        utils.setRootJntAtt("addSpineShaper", "1", charName)
+        
     
-    for i in range(0,len(aSpineRigCtrlJnts)):
-        utils.snap(aSpineRigCtrlJnts[i], tLoc)
+    else:
+        aBackRigCtrlJnts=aSpineRigCtrlJnts
+        # no spineShaper; use aSpineRigCtrlJnts
+        utils.setRootJntAtt("addSpineShaper", "0", charName)
+        
+    tLoc = pm.spaceLocator(name="abRTSkeletonizeTemp_loc")
+    aBRJntTrans=[]
+    curveStr="curve -d 3"
+    for i in range(0,len(aBackRigCtrlJnts)):
+        utils.snap(aBackRigCtrlJnts[i], tLoc)
         aTrans=pm.xform(tLoc, q=1,ws=1,t=1)
         curveStr+=" -p " + str(aTrans[0]) + " " + str(aTrans[1]) + " " + str(aTrans[2])
+        # add trans to aBRJntTrans if we're making a spineShaper
+        if makeSpineShaper:
+            aBRJntTrans.append(aTrans[0])
+            aBRJntTrans.append(aTrans[1])
+            aBRJntTrans.append(aTrans[2])
+            
         
     curveStr+=" -n " + "C_ikSpline_crv"
     spineCurve=str(pm.mel.eval(curveStr))
     # parent curve
-    spineCurve=str(pm.parent(spineCurve, spineCurveGrp)[0])
+    spineCurve=str(pm.parent(spineCurve, spineNSGrp)[0])
     pm.delete(tLoc)
-
+    if pm.objExists(shaperLoc):
+        pm.delete(shaperLoc)
+        
     pm.select(clear=1)
-
+    # now make shaperJnt
+    if makeSpineShaper:
+        aSpineShaperJntChain=[]
+        pm.select(clear=1)
+        for i in range(0,len(aBRJntTrans),3):
+            aTrans[0]=aBRJntTrans[i]
+            aTrans[1]=aBRJntTrans[i + 1]
+            aTrans[2]=aBRJntTrans[i + 2]
+            aSpineShaperJntChain.append(str(pm.joint(p=(aTrans[0], aTrans[1], aTrans[2]))))
+            
+        aStr=pm.duplicate(aSpineShaperJntChain[- 3], po=1,n="C_spineShaper_jnt")
+        shaperJnt=aStr[0]
+        shaperJnt=str(pm.parent(shaperJnt, spineGrp)[0])
+        # ok, got the shaper jnt, now delete the joints
+        pm.delete(aSpineShaperJntChain[0])
+        pm.select(clear=1)
+        # replace shaperLoc with shaperJnt in $aBackRigCtrlJnts
+        for i in range(0,len(aBackRigCtrlJnts)):
+            if aBackRigCtrlJnts[i] == shaperLoc:
+                aBackRigCtrlJnts[i]=shaperJnt
+                
+            
+        
     aSpineJntNames=[]
     # fill aSpineJntNames
     #int $spineJntNum = int(abRTGetGlobal("spineJntNum"));
-    
-    for i in range(0,spineJntNum - 1):
-        aSpineJntNames.append("C_spine%02d_skinJnt"%(i+1))
-    aSpineJntNames.append("C_chest01_skinJnt")
+    for i in range(0,spineJntNum):
+        aSpineJntNames.append("C_spineRig_%s_skinJnt"%(alpha[i + 1-1:i + 1]))
+        
     aStr=pm.rebuildCurve(spineCurve,
         rt=0,ch=1,end=1,d=3,kr=0,s=0,kcp=0,tol=0.01,kt=0,rpo=0,kep=1)
     
     # create spine joints
     rebuiltSpineCurve=aStr[0]
 
-    aRigSpineJnts= makeSpineJntsFromCurve(rebuiltSpineCurve, aSpineJntNames, parentTo, False)
+    aRigSpineJnts= makeSpineJntsFromCurve(rebuiltSpineCurve, aSpineJntNames, spineGrp, False)
     pm.delete(rebuiltSpineCurve)
-    # orient and parent
-    orientJoints(aRigSpineJnts, "xyz", "zdown")
-    pm.parent(aRigSpineJnts[0], parentTo)
+    # done with back
+    utils.orientJoints(aRigSpineJnts, "xyz", "zdown")
+    # make control and weight joints
+    # dup from second rig spine joint to next to last rig spine joint to make binding joints (which have to be unparented from each other to do the twist)
+    aCroppedRigSpineJnts=[]
+    aWtJntNames=[]
+    aCtrlJntNames=[]
+    tmpJntSuf="abTmpJnt"
+    i=1
+    while 1:
+        if not ( (i<len(aRigSpineJnts) - 1) ):
+            break
+        
+        nr=alpha[i + 1-1:i + 1]
+        aWtJntNames.append("C_weightSpine_%s_%s"% (nr, tmpJntSuf))
+        aCtrlJntNames.append("C_ctrlSpine_%s_%s"% (nr, tmpJntSuf))
+        aCroppedRigSpineJnts.append(aRigSpineJnts[i])
+        i+=1
+        
+    aCtrlSpineJnts=duplicateJointHierarchy(aCroppedRigSpineJnts, aCtrlJntNames, spineGrp)
+    # make rigCtrlJnts
+    ctrlSpineGrp=str(pm.group(em=1,p=spineGrp,name="ctrlSpine_rigGrp"))
+    # create weight spine group rootDir first, then move it to skelWSGrp if needed
+    weightSpineGrp = str(pm.group(em=1,name="weightSpine_rigGrp"))
+    aWeightSpineJnts = duplicateJointHierarchy(aCroppedRigSpineJnts, aWtJntNames, weightSpineGrp)
+    # unparent joints from heirarchy and group freeze them
+    for i in range((len(aWeightSpineJnts) - 1),0-1,-1):
+        aWeightSpineJnts[i]=str(pm.parent(aWeightSpineJnts[i], weightSpineGrp)[0])
+        # replace temp suffix (if I didn't do it this way I'd get names ending in _jnt1 due to the way duplicateJointHierarchy works when aNames matches the existing hierarchy's names)
+        aStr=pm.rename(aWeightSpineJnts[i], aWeightSpineJnts[i].replace(tmpJntSuf,"jnt"))
+        aWeightSpineJnts[i]=aStr[1]
+        # do the same for the ctrl joints
+        aCtrlSpineJnts[i]=str(pm.parent(aCtrlSpineJnts[i], ctrlSpineGrp)[0])
+        aStr=pm.rename(aCtrlSpineJnts[i], aCtrlSpineJnts[i].replace(tmpJntSuf,"jnt"))
+        aCtrlSpineJnts[i]=aStr[1]
+        
+    skelWeightSpineGroupName="weightSpine_grp"
+    # The skeleton group should already have a weight spine group if it's been rigged before.  If it does, the freezeGrp positions will be matched against the positions in the $weightSpineGrp.  If they don't match, these will be substituted.
+    # If there is no existing weight spine group (in the skeleton group) then $weightSpineGrp will be moved into it
+    skelWSGrp=skeletonGrp + "|" + skelWeightSpineGroupName
+    if pm.objExists(skelWSGrp):
+        delOldWghtGrp=int(False)
+        # group exists.  if the number and positions of the members match up with the joints in $weightSpineGrp, then leave them, otherwise delete the group and it will be recreated
+        matchTol=.005
+        aStr=sorted(pm.listRelatives(skelWSGrp,
+            c=1,type='joint',fullPath=1))
+        # sort it -- otherwise order of joints in skelWSGrp would matter
+        if len(aStr) == len(aWeightSpineJnts):
+            aExistingWeightSpineJnts=[]
+            # check to make sure positions are the same
+            aPosMatchTracker=aWeightSpineJnts
+            posMatch=0
+            for i in range(0,len(aStr)):
+                aExistingWeightSpineJnts[i]=aStr[i]
+                aTrans=pm.joint(aStr[i],
+                    q=1,p=1,a=1)
+                posMatch=int(False)
+                for k in range(0,len(aWeightSpineJnts)):
+                    if aPosMatchTracker[k] == "m":
+                        continue
+                        # make sure we don't match the same joint more than once
+                        
+                    aTrans2=pm.joint(aWeightSpineJnts[k],
+                        q=1,p=1,a=1)
+                    if abs(aTrans[0] - aTrans2[0])<matchTol and abs(aTrans[1] - aTrans2[1])<matchTol and abs(aTrans[2] - aTrans2[2])<matchTol:
+                        aPosMatchTracker[k]="m"
+                        posMatch=int(True)
+                        break
+                        
+                    
+                if not posMatch:
+                    delOldWghtGrp=int(True)
+                    # there was no match for current $aStr joint in $aWeightSpineJnts -- delete it all
+                    break
+                    
+                
+            if posMatch:
+                aWeightSpineJnts=aExistingWeightSpineJnts
+                # we're using the existing weightjnts and frzGrp so we need to update the arrays
+                
+            
+        
+        else:
+            delOldWghtGrp=int(True)
+            
+        if delOldWghtGrp:
+            pm.delete(skelWSGrp)
+            
+        
+    if not pm.objExists(skelWSGrp):
+        pm.group(em=1,name=skelWeightSpineGroupName,parent=skeletonGrp)
+        # create the weight joints in $skelWSGrp by moving contents of weightSpineGrp to skelGrp
+        for i in range(0,len(aWeightSpineJnts)):
+            aWeightSpineJnts[i]=str(pm.parent(aWeightSpineJnts[i], skelWSGrp)[0])
+            # move freezGrp to skelWSGrp
+            
+        
+    pm.delete(weightSpineGrp)
+    pm.delete(aRigSpineJnts[0])
+    if not createCtrlJnts:
+        pm.delete(spineGrp)
+        # delete everything but the weightJnts
+        pm.delete(spineNSGrp)
+        aRigSpineJnts=[]
+        spineCurve=shaperLoc=""
+        
+    # shrink rigJnts (all but first and last)
+    for i in range(1,len(aSpineRigCtrlJnts) - 1):
+        pm.setAttr((aSpineRigCtrlJnts[i] + ".radius"),
+            .01)
+        # update rootJnt with att for number of spineJnts
+        
+    utils.setRootJntAtt("spineJntNum", str(spineJntNum), charName)
+    # $aRet = {
+    # 0 - $spineCurve
+    # 1 - $shaperJnt
+    # 2 - $aBackRigCtrlJnts0 & $aBackRigCtrlJnts1 & ...
+    # 3 - $aCtrlSpineJnts0 & $aCtrlSpineJnts1 & ...
+    # 4 - $aWeightSpineJnts0 & $aWeightSpineJnts1 & ...
+    aRet[0]=spineCurve
+    aRet[1]=shaperJnt
+    aRet[2]="&".join(aBackRigCtrlJnts)
+    aRet[3]="&".join(aCtrlSpineJnts)
+    aRet[4]="&".join(aWeightSpineJnts)
+    return aRet
+    

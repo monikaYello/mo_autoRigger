@@ -93,7 +93,7 @@ def build_jnts_leg(jnts={}, mode=['ik', 'fk']):
 
 
 
-def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION'):
+def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION', scale=1):
     '''
     Args:
         jnts: joint dictionary
@@ -106,7 +106,7 @@ def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION'):
         color = 'red'
 
     id = '%s_leg01' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=1, color=color)
+    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
     # pm.xform('%sShape.cv[0:]' % jnts[id]['fkCtrl'], s=(1.75, 1, 1), t=(1.5, 0, 0), r=1)
     # group and align
     zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
@@ -117,7 +117,7 @@ def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION'):
     riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
 
     id = '%s_leg02' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=1, color=color)
+    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
     # group and align
     zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
     riggUtils.snap(jnts[id]['fkJnt'], zero)
@@ -129,7 +129,7 @@ def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION'):
     # leg03_ctrl drive leg03_endJnt and therefore foot01_ctrl and will be used for stretch setup
     # to hook up length to zero tx
     id = '%s_leg03' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=1, color=color)
+    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
     # group and align
     zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
     riggUtils.snap(jnts[id]['fkJnt'], zero)
@@ -139,7 +139,7 @@ def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION'):
     zero.hide()
 
     id = '%s_foot01' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=.75, color=color)
+    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=(scale*.75), color=color)
     # group and align
     zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
     riggUtils.snap(jnts[id]['ctrlJnt'], zero)
@@ -148,7 +148,7 @@ def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION'):
     riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
 
     id = '%s_foot02' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=.75, color=color)
+    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=(scale*.75), color=color)
     # group and align
     zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
     riggUtils.snap(jnts[id]['ctrlJnt'], zero)
@@ -161,7 +161,7 @@ def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION'):
     log_info("Done create_ctrl_fk_leg()")
 
 
-def create_ctrl_ik_leg(jnts, side='L', parent='DIRECTION'):
+def create_ctrl_ik_leg(jnts, side='L', parent='DIRECTION', scale=1):
     '''
     Args:
         jnts: joint dictionary
@@ -177,7 +177,7 @@ def create_ctrl_ik_leg(jnts, side='L', parent='DIRECTION'):
         return '%s_ikCtrl Exists' % id
 
     # -- ik ctrl -- #
-    jnts[id]['ikCtrl'] = curveLib.createShapeCtrl(type='cube', name='%s_ikCtrl' % id, scale=1, color=color)
+    jnts[id]['ikCtrl'] = curveLib.createShapeCtrl(type='cube', name='%s_ikCtrl' % id, scale=scale, color=color)
     # group and align
     zero = riggUtils.grpCtrl(jnts[id]['ikCtrl'])
     riggUtils.snap(jnts[id]['ctrlJnt'], zero, typeCnx='point')
@@ -198,7 +198,7 @@ def create_ctrl_ik_leg(jnts, side='L', parent='DIRECTION'):
     jnts[id]['ikCtrl'].attr('gimbal').set('%s' % gimbalCtrl, k=0, l=0, type='string')
 
     # -- pole vector -- #
-    jnts[id]['pvecCtrl'] = curveLib.createShapeCtrl(type='sphere', name='%s_pvecCtrl' % id, scale=1, color=color)
+    jnts[id]['pvecCtrl'] = curveLib.createShapeCtrl(type='sphere', name='%s_pvecCtrl' % id, scale=scale, color=color)
     # group and align
     zero = riggUtils.grpCtrl(jnts[id]['pvecCtrl'])
     polePos = riggUtils.poleVectorPosition(startJnt=jnts['%s_leg01' % side]['ikJnt'],
@@ -370,7 +370,7 @@ def setup_ikfkSwitch_leg(jnts, RL='L'):
     return jnts
 
 
-def create_ctrl_ikfkSwitch(name='L_leg_fkIkSwitch', color='blue', parent=None):
+def create_ctrl_ikfkSwitch(name='L_leg_fkIkSwitch', color='blue', parent=None, scale=1):
     """
     Args:
         name:
@@ -379,7 +379,7 @@ def create_ctrl_ikfkSwitch(name='L_leg_fkIkSwitch', color='blue', parent=None):
     Returns:
 
     """
-    fkikSwitch = curveLib.createShapeCtrl(type='crossPaddle', name=name, scale=1, color=color)
+    fkikSwitch = curveLib.createShapeCtrl(type='crossPaddle', name=name, scale=scale, color=color)
     # addd 'rotOrder'
 
     lmin = -90

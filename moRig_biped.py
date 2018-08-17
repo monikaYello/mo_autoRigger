@@ -12,8 +12,8 @@ reload(curveLib)
 reload(riggUtils)
 '''
 import sys
-#sys.path.append('D:\Google Drive\PythonScripting\my_autoRigger')
-#sys.path.append('D:\Google Drive\PythonScripting\scripts')
+sys.path.append('D:\Google Drive\PythonScripting\mo_autoRigger')
+sys.path.append('D:\Google Drive\PythonScripting\scripts')
 
 # Build template and skinJnts with UI
 import moRig_UI as moRig_UI
@@ -37,7 +37,7 @@ import moRig_biped as biped
 import moRig_spine as spine
 import moRig_arm as arm
 import moRig_leg as leg
-reload(bipesd)
+reload(biped)
 reload(arm)
 reload(leg)
 
@@ -53,19 +53,21 @@ biped.define_ctrlJnts(jnts)
 arm.build_jnts_arm(jnts, mode=['ik', 'fk'])
 leg.build_jnts_leg(jnts, mode=['ik', 'fk'])
 
-
 biped.define_fkJnts(jnts)
 biped.define_ikJnts(jnts)
 
 # ctrls
-biped.createWorld()
-arm.create_ctrl_fk_arm(jnts)
-arm.create_ctrl_ik_arm(jnts)
-biped.define_fkCtrls(jnts)
+scale = 1
+biped.createWorld(scale=scale)
+arm.create_ctrl_fk_arm(jnts, scale=scale)
+arm.create_ctrl_ik_arm(jnts, scale=scale)
+
 
 reload(leg)
-leg.create_ctrl_fk_leg(jnts)
-leg.create_ctrl_ik_leg(jnts)
+leg.create_ctrl_fk_leg(jnts, scale=scale)
+leg.create_ctrl_ik_leg(jnts, scale=scale)
+
+biped.define_fkCtrls(jnts)
 
 # ikfk with switch
 arm.setup_fk_arm(jnts, RL='L')
@@ -73,7 +75,7 @@ arm.setup_ik_arm(jnts, RL='L')
 arm.setup_ikfkSwitch_arm(jnts)
 
 # spine
-biped.create_ctrl_spine(jnts, spine_count=3, size=2.0)
+biped.create_ctrl_spine(jnts, spine_count=3, scale=scale*2)
 spine.setup_spine(jnts)
 
 # space switch
@@ -198,7 +200,7 @@ def merge_nested_dic(d1, d2):
 			d1[k] = d2[k]
 
 
-def createWorld(name='human'):
+def createWorld(name='human', scale=1):
 	'''
 	Create World node for character with standardized Rigg Groups and export Sets
 	Creates Placer, Mover, Direction Ctrls
@@ -223,11 +225,11 @@ def createWorld(name='human'):
 	pm.parent('RIG_SCALE', 'RIG')
 
 	print 'placer'
-	placer = curveLib.createShapeCtrl(type='PLACER', name='PLACER', scale=1)
+	placer = curveLib.createShapeCtrl(type='PLACER', name='PLACER', scale=scale)
 	print 'mover'
-	mover = curveLib.createShapeCtrl(type='MOVER', name='MOVER', scale=1, color='blue')
+	mover = curveLib.createShapeCtrl(type='MOVER', name='MOVER', scale=scale, color='blue')
 	print 'direction'
-	direction = curveLib.createShapeCtrl(type='DIRECTION', name='DIRECTION', scale=1, color='red')
+	direction = curveLib.createShapeCtrl(type='DIRECTION', name='DIRECTION', scale=scale, color='red')
 	# size attribute
 	pm.addAttr(direction, ln='size', at='double', dv=1, k=1)
 	direction.size >> direction.scaleX
@@ -242,13 +244,13 @@ def createWorld(name='human'):
 	pm.parent(placer, 'CONTSTRAINER')
 
 	# DISPLAY
-	curveLib.createTextCtrl('D', 'DISPLAY', font="Arial", size=1)
+	curveLib.createTextCtrl('D', 'DISPLAY', font="Arial", size=scale)
 	riggUtils.grpCtrl(ctrl='DISPLAY')
 	pm.parent('DISPLAY_ZERO', placer)
 	riggUtils.makeExportable([placer, mover, direction, 'DISPLAY'])
 
 
-def create_ctrl_spine(jnts, spine_count=4, size=1.0):
+def create_ctrl_spine(jnts, spine_count=4, scale=4):
 	'''
 	Create COG, pelvis, spine and chest ctrls
 
@@ -267,7 +269,7 @@ def create_ctrl_spine(jnts, spine_count=4, size=1.0):
 
 
 	# - COG - #
-	cog = curveLib.createShapeCtrl(type='circle', name='C_COG_ctrl', scale=size * 2.5, color='yellow')
+	cog = curveLib.createShapeCtrl(type='circle', name='C_COG_ctrl', scale=scale * 2.5, color='yellow')
 	riggUtils.cleanUpAttr(sel=[cog], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
 	# grp - snap - parent - gimbal
 	lg.debug('grp ctrl %s' % cog)
@@ -283,7 +285,7 @@ def create_ctrl_spine(jnts, spine_count=4, size=1.0):
 	spine_ctrl_grp = pm.createNode('transform', n='C_spineCtrl_grp', p=cog.gimbal.get())
 	riggUtils.snap(cog.gimbal.get(), spine_ctrl_grp)
 
-	jnts['pelvis01']['ctrl'] = curveLib.createShapeCtrl(type='circle', name='C_pelvis_ctrl', scale=size * 1.5,
+	jnts['pelvis01']['ctrl'] = curveLib.createShapeCtrl(type='circle', name='C_pelvis_ctrl', scale=scale * 1.5,
 														color='red')
 	riggUtils.cleanUpAttr(sel=jnts['pelvis01']['ctrl'], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
 	# rotation order
@@ -303,7 +305,7 @@ def create_ctrl_spine(jnts, spine_count=4, size=1.0):
 
 		lg.debug('creating ik spine %s' % id)
 
-		jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='C_%s_fkCtrl' % id, scale=size * 1.5,
+		jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='C_%s_fkCtrl' % id, scale=scale * 1.5,
 													  color=color)
 
 		# grp - snap - parent
@@ -320,7 +322,7 @@ def create_ctrl_spine(jnts, spine_count=4, size=1.0):
 
 	# - Chest - #
 	lg.debug('creating chest ctrls')
-	jnts['chest01']['ctrl'] = curveLib.createShapeCtrl(type='circle', name='C_spineChest_ctrl', scale=size * 1.5,
+	jnts['chest01']['ctrl'] = curveLib.createShapeCtrl(type='circle', name='C_spineChest_ctrl', scale=scale * 1.5,
 													   color='red')
 	riggUtils.cleanUpAttr(sel=jnts['chest01']['ctrl'], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
 	# rotation order

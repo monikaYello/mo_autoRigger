@@ -757,6 +757,6 @@ def setGlobal(name, strVal):
         settings.globalPrefs[name] = strVal
 
 def printGlobalPrefs():
-    settings.initGlobals()
+    #settings.initGlobals()
     print settings.globalPrefs
 
