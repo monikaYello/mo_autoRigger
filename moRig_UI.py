@@ -653,11 +653,14 @@ def skeletonMakerUI():
     # intSliderGrp -label "Spine Ctrl Num:" -min 3 -max 8 -v 3 -field true -columnWidth3 80 30 100 -adjustableColumn3 3 -cc $updateProxyCmd moSklMkrMidSpineNumIntSldrGrp;
     # intSliderGrp -label "Neck Num:" -min 1 -max 3 -v 1 -field true -columnWidth3 80 30 100 -adjustableColumn3 3 -cc $updateProxyCmd moSklMkrNeckNumIntSldrGrp;
     pm.intSliderGrp('moSklMkrMidSpineNumIntSldrGrp', adjustableColumn3=3, min=3, max=8, label="Spine Ctrl Num:",
-                    field=True, v=3, columnWidth3=(80, 30, 100))
+                    field=True, v=3, columnWidth3=(80, 30, 100),
+                    cc=lambda *args: setGlobal("spineCtrlNum",  pm.intSliderGrp('moSklMkrMidSpineNumIntSldrGrp', q=1, v=1)))
     pm.intSliderGrp('moSklMkrNeckNumIntSldrGrp', adjustableColumn3=3, min=1, max=3, label="Neck Num:", field=True,
-                    v=1, columnWidth3=(80, 30, 100))
+                    v=1, columnWidth3=(80, 30, 100),
+                    cc=lambda *args: setGlobal("neckNum",  pm.intSliderGrp('moSklMkrNeckNumIntSldrGrp', q=1, v=1)))
     pm.intSliderGrp('moSklMkrFingerNumIntSldrGrp', adjustableColumn3=3, min=2, max=5, label="Finger Num:", field=True,
-                    v=5, columnWidth3=(80, 30, 100))
+                    v=5, columnWidth3=(80, 30, 100), 
+                    cc=lambda *args: setGlobal("fingerNum",  pm.intSliderGrp('moSklMkrFingerNumIntSldrGrp', q=1, v=1)))
     pm.intSliderGrp('moSklMkrToeNumIntSldrGrp', adjustableColumn3=3, min=0, max=5, label="Toe Num:", field=True, v=0,
                     columnWidth3=(80, 30, 100))
     pm.button('moSklMkrPrxyBn', h=28, c=lambda *args: skelTemp.makeProxySkeleton(), l="Make Proxy Skeleton")
@@ -666,8 +669,7 @@ def skeletonMakerUI():
     pm.button('moSklMkrSavePrxyBn', c=lambda *args: skelTemp.saveProxySkeleton(), l="Save Proxy to Shelf")
     pm.separator('moSklMkrSep2')
     pm.intSliderGrp('moSklMkrSpineJntsSldrGrp', adjustableColumn3=3, min=4,
-                    cc=lambda *args: setGlobal("spineJntNum",
-                                                          pm.intSliderGrp('moSklMkrSpineJntsSldrGrp', q=1, v=1)),
+                    cc=lambda *args: setGlobal("spineJntNum", pm.intSliderGrp('moSklMkrSpineJntsSldrGrp', q=1, v=1)),
                     max=18, label="Spine Joints:", field=True, v=(int(getGlobal("spineJntNum"))),
                     columnWidth3=(80, 30, 100))
     pm.intSliderGrp('moSklMkrUpArmSpltIntSldrGrp', adjustableColumn3=3, min=0,

@@ -121,6 +121,8 @@ def define_ctrlJnts(jnts={}):
 	return merge_nested_dic(jnts, ctrljnts)
 
 
+
+
 def define_fkJnts(jnts={}):
 	'''
 	Define fk jnts based on searching for '_fkJnt' in scene and merge them into existing Jnts Dictionary
@@ -152,7 +154,6 @@ def define_fkCtrls(jnts={}):
 	for limb in ['clavicle', 'arm', 'hand', 'leg', 'foot']:
 		for side in ['R', 'L']:
 			existingJnts = pm.ls('%s_%s*_fkCtrl' % (side, limb))
-			print 'existingJnts %s'%existingJnts
 			for j in existingJnts:
 				armjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_fkCtrl')[0])] = {'fkCtrl': j}
 
@@ -168,6 +169,43 @@ def define_fkCtrls(jnts={}):
 
 	return merge_nested_dic(jnts, cntrjnts)
 
+def define_ikCtrls(jnts={}):
+	'''
+	Define fk Ctrl based on searching for '_ikCtrl' in scene and merge them into existing Jnts Dictionary
+	Args:
+	    jnts: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
+
+	Returns: Jnts Dictionary with found  fk Ctrls added
+	'''
+	armjnts = {}
+	for limb in ['clavicle', 'hand','foot']:
+		for side in ['R', 'L']:
+			existingJnts = pm.ls('%s_%s*_ikCtrl' % (side, limb)) 
+			for j in existingJnts:
+				armjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ikCtrl')[0])] = {'ikCtrl': j}
+
+	for limb in ['clavicle', 'hand','foot']:
+			for side in ['R', 'L']:
+				existingJnts = pm.ls('%s_%s*_pvecCtrl' % (side, limb)) 
+				for j in existingJnts:
+					armjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_pvecCtrl')[0])] = {'pvecCtrl': j}
+
+	merge_nested_dic(jnts, armjnts)
+
+	# Center
+	cntrjnts = {}
+	side = 'C'
+	for limb in ['spine']:
+		existingJnts  = pm.ls('%s_%s*_ikCtrl' % (side, limb))
+		for j in existingJnts:
+			cntrjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ikCtrl')[0])] = {'ikCtrl': j}
+
+	return merge_nested_dic(jnts, cntrjnts)
+
+def define_ctrls(jnts={}):
+	jnts = define_fkCtrls(jnts=jnts)
+	jnts = define_ikCtrls(jnts=jnts)	
+	return jnts
 
 def define_ikJnts(jnts={}):
 	'''
@@ -250,89 +288,7 @@ def createWorld(name='human', scale=1):
 	riggUtils.makeExportable([placer, mover, direction, 'DISPLAY'])
 
 
-def create_ctrl_spine(jnts, spine_count=4, scale=4):
-	'''
-	Create COG, pelvis, spine and chest ctrls
 
-	Args:
-	    jnts:
-	    spine_count:
-	    size: ctrl scale
-
-	Returns:
-
-	'''
-	### TODO cest offset control, to rotate from chest if needed (human_luma:C_chest_offsetCtrl)
-	lg.info('Creating Spine Ctrls')
-	side = 'C'
-	# create groups
-
-
-	# - COG - #
-	cog = curveLib.createShapeCtrl(type='circle', name='C_COG_ctrl', scale=scale * 2.5, color='yellow')
-	riggUtils.cleanUpAttr(sel=[cog], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
-	# grp - snap - parent - gimbal
-	lg.debug('grp ctrl %s' % cog)
-	riggUtils.grpCtrl(cog)
-	riggUtils.snap(jnts['pelvis01']['ctrlJnt'], cog.ZERO.get())
-	pm.parent(cog.ZERO.get(), 'DIRECTION')
-	riggUtils.addGimbal(cog)
-	# add to dictionary
-	jnts['cog'] = {'ctrl':pm.PyNode('C_COG_ctrl')}
-
-	# - Pelvis - #
-	lg.debug('creating pelvis ctrls')
-	spine_ctrl_grp = pm.createNode('transform', n='C_spineCtrl_grp', p=cog.gimbal.get())
-	riggUtils.snap(cog.gimbal.get(), spine_ctrl_grp)
-
-	jnts['pelvis01']['ctrl'] = curveLib.createShapeCtrl(type='circle', name='C_pelvis_ctrl', scale=scale * 1.5,
-														color='red')
-	riggUtils.cleanUpAttr(sel=jnts['pelvis01']['ctrl'], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
-	# rotation order
-	jnts['pelvis01']['ctrlJnt'].rotateOrder.set(2)
-	jnts['pelvis01']['ctrl'].rotateOrder.set(2)
-	# grp - snap - parent - gimbal
-	riggUtils.grpCtrl(jnts['pelvis01']['ctrl'])
-	riggUtils.snap(jnts['pelvis01']['ctrlJnt'], jnts['pelvis01']['ctrl'].ZERO.get())
-	pm.parent(jnts['pelvis01']['ctrl'].ZERO.get(), spine_ctrl_grp)
-	riggUtils.addGimbal(jnts['pelvis01']['ctrl'])
-
-	# - Spine - #
-	lg.debug('creating ik spine ctrls %s' % spine_count)
-	color = 'blue'
-	for i in range(spine_count):
-		id = 'spine%02d' % (int(i) + 1)
-
-		lg.debug('creating ik spine %s' % id)
-
-		jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='C_%s_fkCtrl' % id, scale=scale * 1.5,
-													  color=color)
-
-		# grp - snap - parent
-		zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'])
-		riggUtils.snap(jnts[id]['ctrlJnt'], zero)
-		if i == 0:
-			riggUtils.grpIn('C_spineCtrl_grp', zero)  # parent arm_ctrlGrp
-		else:
-			pm.parent(zero, jnts['spine%02d' % i]['fkCtrl'])
-		# limit
-		riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
-
-		i += 1
-
-	# - Chest - #
-	lg.debug('creating chest ctrls')
-	jnts['chest01']['ctrl'] = curveLib.createShapeCtrl(type='circle', name='C_spineChest_ctrl', scale=scale * 1.5,
-													   color='red')
-	riggUtils.cleanUpAttr(sel=jnts['chest01']['ctrl'], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
-	# rotation order
-	jnts['chest01']['ctrlJnt'].rotateOrder.set(2)
-	jnts['chest01']['ctrl'].rotateOrder.set(2)
-	# grp - snap - parent - gimbal
-	riggUtils.grpCtrl(jnts['chest01']['ctrl'])
-	riggUtils.snap(jnts['chest01']['ctrlJnt'], jnts['chest01']['ctrl'].ZERO.get())
-	pm.parent(jnts['chest01']['ctrl'].ZERO.get(), spine_ctrl_grp)
-	riggUtils.addGimbal(jnts['chest01']['ctrl'])
 
 
 ### TODO build skinJnts form template
@@ -341,6 +297,9 @@ def build_skinJnts_body():
 
 
 def build_ctrlJnts_body(jnts={}):
+	# delete existing
+	pm.delete(pm.ls(['Skeleton_grp', 'C_body_jntGrp']))
+
 	pm.createNode('transform', name='Skeleton_grp')
 	pm.createNode('transform', name='C_body_jntGrp', p='Skeleton_grp')
 

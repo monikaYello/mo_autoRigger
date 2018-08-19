@@ -1,53 +1,144 @@
 import pymel.core as pm
-import mo_Utils.mo_riggUtils as mo_riggUtils
+import mo_Utils.mo_riggUtils as riggUtils
 import moRig_utils as utils
-reload(mo_riggUtils)
+import mo_Utils.mo_curveLib as curveLib
+from mo_Utils.mo_logging import log_debug
+from mo_Utils.mo_logging import log_info
+
+reload(utils)
+reload(riggUtils)
+
 
 def build_skinJnts_spine(startknob, endknob, amount):
     pm.select(clear=1)
 
-    start_jnt, end_jnt = pm.joint(n='C_spine01_skinJnt'), pm.joint(n='C_spine%02d_skinJnt'%amount)
-    
+    start_jnt, end_jnt = pm.joint(n='C_spine01_skinJnt'), pm.joint(n='C_spine%02d_skinJnt' % amount)
+
     pm.xform(start_jnt, t=pm.xform(startknob, q=1, t=1, ws=1), ws=1)
     pm.xform(end_jnt, t=pm.xform(endknob, q=1, t=1, ws=1), ws=1)
-    
-    mo_riggUtils.splitJnt(amount, joints=[start_jnt, end_jnt])
+
+    riggUtils.splitJnt(amount, joints=[start_jnt, end_jnt])
 
 
-def resampleSpline(amount = 4):
-    
-    multiplyer = 1.00/amount
+def resampleSpline(amount=4):
+    multiplyer = 1.00 / amount
     for i in range(amount):
-        knob = pm.sphere(n='spine_knob%02d'%(i+1), r=0.2)
-        grp = pm.group(knob, name='spine_grp%02d'%(i+1))
+        knob = pm.sphere(n='spine_knob%02d' % (i + 1), r=0.2)
+        grp = pm.group(knob, name='spine_grp%02d' % (i + 1))
         const = pm.parentConstraint(['Root_knob', 'Chest_knob'], grp, mo=0)
-        
-        pm.setAttr('%s.Root_knobW0'%const, (1-(multiplyer*i)))
-        pm.setAttr('%s.Chest_knobW1'%const, (multiplyer*i))
 
-def setup_spine(jnts):
+        pm.setAttr('%s.Root_knobW0' % const, (1 - (multiplyer * i)))
+        pm.setAttr('%s.Chest_knobW1' % const, (multiplyer * i))
+
+
+def create_ctrl_spine(jnts, spine_count=4, scale=4):
+    '''
+    Create COG, pelvis, spine and chest ctrls
+
+    Args:
+        jnts:
+        spine_count:
+        size: ctrl scale
+
+    Returns:
+
+    '''
+    ### TODO cest offset control, to rotate from chest if needed (human_luma:C_chest_offsetCtrl)
+    log_info('Creating Spine Ctrls')
+    side = 'C'
+
+    # - COG - #
+
+    # create ctrl
+    cog = curveLib.wireController(type='circle', name='C_COG_ctrl', size=scale, color='yellow', facingAxis='y+')
+    riggUtils.cleanUpAttr(sel=[cog], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
+    # grp - snap - parent - gimbal
+    riggUtils.grpCtrl(cog)
+    riggUtils.snap(jnts['pelvis01']['ctrlJnt'], cog.ZERO.get(), 'point')
+    pm.parent(cog.ZERO.get(), 'DIRECTION')
+    riggUtils.addGimbal(cog)
+    # add to dictionary
+    jnts['cog'] = {'ctrl': pm.PyNode('C_COG_ctrl')}
+
+    spine_ctrl_grp = pm.createNode('transform', n='C_spineCtrl_grp', p=cog.gimbal.get())
+    riggUtils.snap(cog.gimbal.get(), spine_ctrl_grp)
+    
+    
+    # - Pelvis - #
+
+    log_debug('creating pelvis ctrls')
+    jnts['pelvis01']['ctrl'] = curveLib.wireController(type='circle', name='C_pelvis_ctrl', size=scale * 1.5,
+                                                       color='red', facingAxis='y+')
+    riggUtils.cleanUpAttr(sel=jnts['pelvis01']['ctrl'], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
+    # rotation order
+    jnts['pelvis01']['ctrlJnt'].rotateOrder.set(2)
+    jnts['pelvis01']['ctrl'].rotateOrder.set(2)
+    # grp - snap - parent - gimbal
+    riggUtils.grpCtrl(jnts['pelvis01']['ctrl'])
+    riggUtils.snap(jnts['pelvis01']['ctrlJnt'], jnts['pelvis01']['ctrl'].ZERO.get(), 'point')
+    pm.parent(jnts['pelvis01']['ctrl'].ZERO.get(), spine_ctrl_grp)
+    riggUtils.addGimbal(jnts['pelvis01']['ctrl'])
+
+    # - Spine - #
+
+    log_debug('creating ik spine ctrls %s' % spine_count)
+    color = 'blue'
+
+    # - Chest - #
+    log_debug('creating chest ctrls')
+    jnts['chest01']['ctrl'] = curveLib.wireController(type='circle', name='C_spineChest_ctrl', size=scale * 1.5,
+                                                      color='red', facingAxis='y+')
+    riggUtils.cleanUpAttr(sel=jnts['chest01']['ctrl'], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
+    # rotation order
+    jnts['chest01']['ctrlJnt'].rotateOrder.set(2)
+    jnts['chest01']['ctrl'].rotateOrder.set(2)
+    # grp - snap - parent - gimbal
+    riggUtils.grpCtrl(jnts['chest01']['ctrl'])
+    riggUtils.snap(jnts['chest01']['ctrlJnt'], jnts['chest01']['ctrl'].ZERO.get(), 'point')
+    pm.parent(jnts['chest01']['ctrl'].ZERO.get(), spine_ctrl_grp)
+    riggUtils.addGimbal(jnts['chest01']['ctrl'])
+
+
+def create_fk_spine(amount=4):
+    spineJnts = pm.ls('C_spine*_ctrlJnt')
+
+    spline_crv = utils.makeCurveFromJoints(spineJnts, name='C_spine_splineCrv', rebuild=True, divisions=2)
+
+    fkJnts = utils.createJointsAlongCurve(spline_crv, amount=amount, name='C_spine##_fkJnt')
+
+    pm.delete(spline_crv)
+
+    return fkJnts
+
+
+def setup_spine(jnts, fkCtrls=3):
     # constrain pelvis
     pm.parentConstraint(jnts['pelvis01']['ctrl'], jnts['pelvis01']['ctrlJnt'].attr('AUTO').get(), mo=1)
     # constrain chest
     pm.parentConstraint(jnts['chest01']['ctrl'], jnts['chest01']['ctrlJnt'].attr('AUTO').get(), mo=1)
 
     spine_list = [j for j in jnts.keys() if j[0:5] == 'spine']
-    spine_list.sort()
-    spline_ik = pm.ikHandle(n='C_spine_splineIK', sj=jnts[spine_list[0]]['ctrlJnt'], ee=jnts[spine_list[-1]]['ctrlJnt'],
-                            sol='ikSplineSolver')
+    spine_list.sort('C_spine*_skinJnt')
+    spineJnts = pm.ls()
 
+    spline_crv = utils.makeCurveFromJoints(spineJnts, name='C_spine_splineCrv', rebuild=True, divisions=2)
+
+    print 'spine curve is %s' % spline_crv
+    spline_ik = pm.ikHandle(n='C_spine_splineIK', sj=jnts[spine_list[0]]['ctrlJnt'], ee=jnts[spine_list[-1]]['ctrlJnt'],
+                            sol='ikSplineSolver', curve=spline_crv, ccv=False)
+    print 'spine_ik is %s' % spline_ik
     spline_hndl = spline_ik[0]
     spline_eff = spline_ik[1].rename('C_spine_splineEfctr')
-    spline_crv = spline_ik[2].rename('C_spine_splineCrv')
+    # spline_crv = spline_ik[2].rename('C_spine_splineCrv')
 
     pm.group(spline_hndl, n='C_spine_nonScaleGrp')
-    mo_riggUtils.grpIn('C_spine_nonScaleGrp', 'RIG_NONSCALE')
+    riggUtils.grpIn('C_spine_nonScaleGrp', 'RIG_NONSCALE')
 
-    # skin cure to joints
+    # skin curve to joints
     # to bind nurbsSphere1 and pPlane1 to the skeleton containing joint2
     #
     pm.bindSkin(spline_crv, [jnts['pelvis01']['ctrlJnt'], jnts['chest01']['ctrlJnt']])
-
+    print 'creating stretchy spline'
     # make stretchy
     createStretchSpline(spline_crv, volume=1, worldScale=0, worldScaleObj=None, worldScaleAttr=None)
 
@@ -72,8 +163,8 @@ def createStretchSpline(curveObj, volume, worldScale, worldScaleObj, worldScaleA
 
                 $worldScaleAttr     =>  The attribute to be used for world scale
 
-    Req:        js_getStretchAxis.mel
-                js_createCurveControl.mel
+    Req:        getStretchAxis
+                createCurveControl
     """
 
     node = pm.arclen(curveObj, ch=1)
@@ -93,7 +184,7 @@ def createStretchSpline(curveObj, volume, worldScale, worldScaleObj, worldScaleA
     # do to that, we'll look at the translate values of the second joint.  Whichever translate has the
     # highest value, that'll be the first one and the other two axis will be the shrinking one
     stretchAxis = [""] * (3)
-    stretchAxis = pm.mel.js_getStretchAxis(joints[1])
+    stretchAxis = getStretchAxis(joints[1])
     # create a normalizedScale attr on the curveInfo node
     pm.addAttr(node, ln="normalizedScale", at="double")
     length = pm.getAttr(str(node) + ".arcLength")
@@ -161,3 +252,19 @@ def createStretchSpline(curveObj, volume, worldScale, worldScaleObj, worldScaleA
     pm.select(curveObj)
 
 
+def getStretchAxis(joint):
+    stretchAxis = [""] * (3)
+    t = [0.0] * (3)
+    t = pm.getAttr(joint + ".t")
+    if (abs(t[0]) > abs(t[1])) and (abs(t[0]) > abs(t[2])):
+        stretchAxis = ["sx", "sy", "sz"]
+
+
+    elif (abs(t[1]) > abs(t[0])) and (abs(t[1]) > abs(t[2])):
+        stretchAxis = ["sy", "sx", "sz"]
+
+
+    elif (abs(t[2]) > abs(t[0])) and (abs(t[2]) > abs(t[1])):
+        stretchAxis = ["sz", "sx", "sy"]
+
+    return stretchAxis

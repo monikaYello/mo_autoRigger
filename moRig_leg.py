@@ -2,15 +2,17 @@ import pymel.core as pm
 import mo_Utils.mo_riggUtils as riggUtils
 import mo_Utils.mo_curveLib as curveLib
 import moRig_biped as biped
+reload(riggUtils)
 
-from mo_Utils.mo_logging import *
-
+from mo_Utils.mo_logging import log_debug
+from mo_Utils.mo_logging import log_info
 
 def build_ctrlJnts_leg(jnts={}, side='L', hook='C_pelvis01_ctrlJnt'):
     '''
     create ctrl joints for leg
     '''
     log_debug( 'side is %s' % side )
+    pm.delete(pm.ls('%s_leg_jntGrp' % side))
     pm.createNode('transform', name='%s_leg_jntGrp' % side)
     riggUtils.grpIn('Skeleton_grp', '%s_leg_jntGrp' % side)
 
@@ -185,6 +187,7 @@ def create_ctrl_ik_leg(jnts, side='L', parent='DIRECTION', scale=1):
 
     # limit
     riggUtils.cleanUpAttr(sel=[jnts[id]['ikCtrl']], listAttr=['sx', 'sy', 'sz'], l=0, k=0, cb=0)
+    log_debug('limit')
 
     # gimbal
     gimbalCtrl = pm.duplicate(jnts[id]['ikCtrl'], n='%s_ikGimbalCtrl' % id)[0]
@@ -196,15 +199,18 @@ def create_ctrl_ik_leg(jnts, side='L', parent='DIRECTION', scale=1):
     # store attr of gimbal on main ctrl
     pm.addAttr(jnts[id]['ikCtrl'], ln='gimbal', dt='string')
     jnts[id]['ikCtrl'].attr('gimbal').set('%s' % gimbalCtrl, k=0, l=0, type='string')
+    log_debug('gimal done')
 
     # -- pole vector -- #
     jnts[id]['pvecCtrl'] = curveLib.createShapeCtrl(type='sphere', name='%s_pvecCtrl' % id, scale=scale, color=color)
     # group and align
     zero = riggUtils.grpCtrl(jnts[id]['pvecCtrl'])
+    log_debug('finding pole position')
     polePos = riggUtils.poleVectorPosition(startJnt=jnts['%s_leg01' % side]['ikJnt'],
                                            midJnt=jnts['%s_leg02' % side]['ikJnt'],
                                            endJnt=jnts['%s_foot01' % side]['ctrlJnt'], length=12, createLoc=0,
                                            createViz=0)
+    log_debug('polepos is %s'%polePos)
     pm.xform(zero, ws=1, t=(polePos.x, polePos.y, polePos.z))
     riggUtils.grpIn('%s_leg_ctrlGrp' % side, zero)  # parent leg_ctrlGrp
     riggUtils.grpIn(parent, '%s_leg_ctrlGrp' % side)  # parent to DIRECTION

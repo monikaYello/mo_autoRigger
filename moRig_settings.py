@@ -19,13 +19,40 @@ def initGlobals():
     globalPrefs["eyeCtrlOffset"] = "40" # eye ctrl offset from eye jnts
     globalPrefs["zeroFreezeGroupSuffix"] = "zeroFrzGrp" # zero group freeze naming suffix (no other nodes will end with this suffix)
     globalPrefs["includeHeadNeckTransAtts"] = "1" # show the fk (trans and useRootSpace) options on head and neck controls
-    globalPrefs["addSpineShaper"] = "0" # enable to add a spine shaper to the spine control curves
     globalPrefs["createIkFingerCtrls"] = "1" # add IK controls to finger rig
     globalPrefs["alignHandIkToWorld"] = "1" # align the hand IK controls to the world axes
     globalPrefs["alignCtrlCrvsToSpine"] = "0" # align top two spine control curves to the spine
-    globalPrefs["spineJntNum"] = "8" # default number of weightSpineJnts
     globalPrefs["footIKCtrlAtAnkle"] = "1" # foot IK control rotates around the heel or the ankle
     globalPrefs["createLimbWtJntsInHierarchy"] = "1" # if true, limb weight joints will be created in a hierarchical chain;  otherwise, they'll be separate and apart
+     
+    # proxy skeleton
+    globalPrefs["spineCtrlNum"] = "3" 
+    globalPrefs["neckNum"] = "1" 
+    globalPrefs["fingerNum"] = "5" # default number of weightSpineJnts
+    globalPrefs["toeNum"] = "1" # default number of weightSpineJnts
+
+    # skeleton maker
+    globalPrefs["spineJntNum"] = "8" # default number of weightSpineJnts
+    globalPrefs["addSpineShaper"] = "0" # enable to add a spine shaper to the spine control curves
+
+    globalPrefs["autoSaveSkeleton"] = "1"
+    globalPrefs["autoMirror"] = "1" # autoMirror rigs on creation (legs, arms, hands)
+    globalPrefs["proxyLocScale"] = ".7" # size of locs on proxy skeleton
+    globalPrefs["lockProxyCtlAxes"] = "1" # lock proxy control axes
+    globalPrefs["legMirrorBehavior"] = "1" # if true, the leg joints will be mirrored using behavior, otherwise will be mirrored using orientation
+    globalPrefs["useBonesForProxyDisplay"] = "1" # if true, the proxy will be connected with bones instead of lines
+    globalPrefs["thumbCurlSpreadRoll"] = "zyx" # axes for thumb curl, spread and roll
+    globalPrefs["fingerCurlSpreadRoll"] = "yzx" # axes for finger curl, spread and roll
+    globalPrefs["fingerCupAxis"] = "y" # axis for finger cup joints
+    globalPrefs["reverseFingerCurl"] = "0" # true if handJoints have been mirrored without -mirrorBehavior (pre 2.0 skeletons), otherwise false
+    
+    # split joints
+    globalPrefs["upArmSplitNum"] = "1" 
+    globalPrefs["foreArmSplitNum"] = "2"
+    globalPrefs["upLegSplitNum"] = "1"
+    globalPrefs["lowLegSplitNum"] = "1"
+    globalPrefs["legMirrorBehavior"] = "1"
+
     # colors
     globalPrefs["ikJntColor"] = "28"
     globalPrefs["fkJntColor"] = "18"
@@ -40,24 +67,6 @@ def initGlobals():
     globalPrefs["masterCtrlColor"] = "23"
     globalPrefs["subMasterCtrlColor"] = "26"
 
-    # skeleton maker
-    globalPrefs["autoSaveSkeleton"] = "1"
-    globalPrefs["autoMirror"] = "1" # autoMirror rigs on creation (legs, arms, hands)
-    globalPrefs["proxyLocScale"] = ".7" # size of locs on proxy skeleton
-    globalPrefs["lockProxyCtlAxes"] = "1" # lock proxy control axes
-    globalPrefs["legMirrorBehavior"] = "1" # if true, the leg joints will be mirrored using behavior, otherwise will be mirrored using orientation
-    globalPrefs["useBonesForProxyDisplay"] = "1" # if true, the proxy will be connected with bones instead of lines
-    globalPrefs["thumbCurlSpreadRoll"] = "zyx" # axes for thumb curl, spread and roll
-    globalPrefs["fingerCurlSpreadRoll"] = "yzx" # axes for finger curl, spread and roll
-    globalPrefs["fingerCupAxis"] = "y" # axis for finger cup joints
-    globalPrefs["reverseFingerCurl"] = "0" # true if handJoints have been mirrored without -mirrorBehavior (pre 2.0 skeletons), otherwise false
-
-    # split joints
-    globalPrefs["upArmSplitNum"] = "1" #
-    globalPrefs["foreArmSplitNum"] = "2"
-    globalPrefs["upLegSplitNum"] = "1"
-    globalPrefs["lowLegSplitNum"] = "1"
-    globalPrefs["legMirrorBehavior"] = "1"
 
     # marking menu
     globalPrefs["bakeFingersToFkCtrls"] = "1" # bake masterFinger control rotations to FK controls if true, otherwise move them to hand control finger atts

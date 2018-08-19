@@ -11,6 +11,7 @@ reload(biped)
 reload(riggUtils)
 reload(curveLib)
 
+
 import logging
 logger = logging.getLogger('root')
 logging.basicConfig(format="[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s")
@@ -33,8 +34,7 @@ reload(arm)
 
 '''
 
-def test():
-	debug_msg('testcall')
+
 
 def define_jnts(jnts={}, parts=['spine', 'head', 'arm', 'leg'], part=['ctrl'], sides=['R', 'L']):
 	jnts['root'] = 'root_ctrlJnt'
@@ -68,6 +68,7 @@ def build_ctrlJnts_arm(jnts={}, side='L'):
 	create ctrl joints for arm
 	'''
 	log_debug ( 'side is %s' % side )
+	pm.delete(pm.ls('%s_arm_jntGrp' % side))
 	pm.createNode('transform', name='%s_arm_jntGrp' % side)
 	riggUtils.grpIn('Skeleton_grp', '%s_arm_jntGrp' % side)
 
@@ -239,7 +240,7 @@ def create_ctrl_fk_arm(jnts, side='L', parent='DIRECTION', scale=1):
 		color = 'red'
 
 	id = '%s_arm01' % side
-	jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
+	jnts[id]['fkCtrl'] = curveLib.wireController(type='circle', name='%s_fkCtrl' % id, size=(scale), color=color, facingAxis='x+')
 	# pm.xform('%sShape.cv[0:]' % jnts[id]['fkCtrl'], s=(1.75, 1, 1), t=(1.5, 0, 0), r=1)
 	# group and align
 	zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
@@ -249,7 +250,7 @@ def create_ctrl_fk_arm(jnts, side='L', parent='DIRECTION', scale=1):
 	riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
 
 	id = '%s_arm02' % side
-	jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
+	jnts[id]['fkCtrl'] = curveLib.wireController(type='circle', name='%s_fkCtrl' % id, size=(scale), color=color, facingAxis='x+')
 	# group and align
 	zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
 	riggUtils.snap(jnts[id]['fkJnt'], zero)
@@ -261,7 +262,7 @@ def create_ctrl_fk_arm(jnts, side='L', parent='DIRECTION', scale=1):
 	# arm03_ctrl drive arm03_endJnt and therefore hand01_ctrl and will be used for stretch setup
 	# to hook up length to zero tx
 	id = '%s_arm03' % side
-	jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
+	jnts[id]['fkCtrl'] = curveLib.wireController(type='circle', name='%s_fkCtrl' % id, size=(scale), color=color, facingAxis='x+')
 	# group and align
 	zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
 	riggUtils.snap(jnts[id]['fkJnt'], zero)
@@ -271,7 +272,7 @@ def create_ctrl_fk_arm(jnts, side='L', parent='DIRECTION', scale=1):
 	zero.hide()
 
 	id = '%s_hand01' % side
-	jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=(scale*.75), color=color)
+	jnts[id]['fkCtrl'] = curveLib.wireController(type='circle', name='%s_fkCtrl' % id, size=(scale), color=color, facingAxis='x+')
 	# group and align
 	zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
 	riggUtils.snap(jnts[id]['ctrlJnt'], zero)
@@ -300,7 +301,8 @@ def create_ctrl_shoulder(jnts, RL='L', scale=1):
 	riggUtils.snap(['%s_clav01'%RL]['fkJnt'], zero)
 	riggUtils.grpIn('%s_arm_ctrlGrp' % RL, zero)  # parent arm_ctrlGrp
 	# limit
-	riggUtils.cleanUpAttr(sel=[['%s_clav01'%RL]['fkJnt']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
+	riggUtils.cleanUpAttr(sel=[['%s_clav01' % RL]['fkJnt']], listAttr=[
+	                      'sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
 
 def setup_fk_arm(jnts, RL='L'):
 	log_debug('Enter')
@@ -317,6 +319,7 @@ def setup_fk_arm(jnts, RL='L'):
 
 	# constrain hand ctrl auto to arm end jnt
 	end_jnt = jnts['%s_arm02' % RL]['fkJnt'].getChildren(type='joint')
+	log_debug("hand01 fk is %s"%jnts['%s_hand01' % RL]['fkCtrl'])
 	pm.parentConstraint(end_jnt, jnts['%s_hand01' % RL]['fkCtrl'].attr('AUTO').get(), mo=1)
 
 	# TODO make arm follow chest. parentconstrain fkCtrl auto to clavJntEnd
@@ -423,7 +426,7 @@ def setup_ikfkSwitch_arm(jnts, RL='L'):
 
 
 
-def create_ctrl_ikfkSwitch(name='L_arm_fkIkSwitch', color='blue', parent=None, scale=scale):
+def create_ctrl_ikfkSwitch(name='L_arm_fkIkSwitch', color='blue', parent=None, scale=1):
 
 	"""
 	Args:

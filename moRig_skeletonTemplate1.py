@@ -1,6 +1,3 @@
-
-
-
 import pymel.core as pm
 import moRig_settings as settings
 import moRig_utils as utils

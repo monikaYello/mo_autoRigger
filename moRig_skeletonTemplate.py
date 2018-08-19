@@ -1,8 +1,11 @@
 import pymel.core as pm
 import moRig_settings as settings
 import moRig_utils as utils
-from mo_Utils.mo_logging import *
+import mo_Utils.mo_curveLib as curveLib
+from mo_Utils.mo_logging import log_debug
+from mo_Utils.mo_logging import log_info
 reload(utils)
+
 
 #log_debug('aAimLocsAndTargets is %s' % aAimLocsAndTargets)
 def makeProxySkeletonFromSaveNode():
@@ -238,12 +241,10 @@ def  recallLocStructureV2(aData, useUIParams):
     objName = ""
     parent = ""
     locTransStr = ""
-    locColorIndex = ""
     aStr = []
     aSubStr = []
     loc = ""
     aRel = []
-    ret = ""
     baseName = ""
     aRestoreAttTable = []
     restoreAttData = ""
@@ -252,7 +253,6 @@ def  recallLocStructureV2(aData, useUIParams):
     # returns rootLoc
     aTrans = []
     aRot = []
-    aScale = []
     i = 0
     k = 0
     frozen = 0
@@ -309,7 +309,6 @@ def  recallLocStructureV2(aData, useUIParams):
     aimLoc = ""
     aAimDataStr = []
     aimConst = []
-    const = ""
     vAim = pm.dt.Vector()
     vUp = pm.dt.Vector()
     aimIndex = 0
@@ -362,82 +361,73 @@ def  recallLocStructureV2(aData, useUIParams):
             aAimLocTargData.append("")
             if pm.mel.match(aAimLocsAndTargets[k], aData[i]) == aAimLocsAndTargets[k]:
                 aAimLocTargData[k] = aData[i + 2]
-    #log_debug("enter window if")
-    if pm.window('moSklMkrWin', q=1, exists=1):
-        log_debug("Window moSklMkrWin exists: %s" %aData)
-        log_debug("midSpineJntNum: %s" % midSpineJntNum)
-        log_debug("useUIParams: %s" % useUIParams)
-        log_debug("spineAlreadySpecified: %s" % spineAlreadySpecified)
-        #return
-        #midSpineJntNum > 1 and useUIParams and not spineAlreadySpecified
-        if useUIParams:
-            fingerNum = int(pm.intSliderGrp('moSklMkrFingerNumIntSldrGrp', q=1, v=1))
-            # done
-            toeNum = int(pm.intSliderGrp('moSklMkrToeNumIntSldrGrp', q=1, v=1))
-            midSpineJntNum = 1
-            if pm.intSliderGrp('moSklMkrMidSpineNumIntSldrGrp', q=1, ex=1):
-                midSpineJntNum = int((pm.intSliderGrp('moSklMkrMidSpineNumIntSldrGrp', q=1, v=1)) - 2)
-                #log_debug("midSpineJntNum: %s "% midSpineJntNum)
 
-            neckJntNum = 1
-            if pm.intSliderGrp('moSklMkrNeckNumIntSldrGrp', q=1, ex=1):
-                neckJntNum = int(pm.intSliderGrp('moSklMkrNeckNumIntSldrGrp', q=1, v=1))
-            #log_debug("before neckJntNum != aDataNeckJntNum: aData is %s" % aData)
-            if neckJntNum != aDataNeckJntNum:
-                aExistingNeckJnts = objExistInProxyDataStr(
-                    ["neck_loc", "neck_1_loc", "neck_2_loc", "neck_3_loc", "neck_4_loc"], aData)
-                #log_debug("before len(aExistingNeckJnts) > 1: aData is %s" % aData)
-                if len(aExistingNeckJnts) > 1:
+    log_debug("Window moSklMkrWin exists: %s" %aData)
+    log_debug("midSpineJntNum: %s" % midSpineJntNum)
+    log_debug("useUIParams: %s" % useUIParams)
+    log_debug("spineAlreadySpecified: %s" % spineAlreadySpecified)
+    #return
+    #midSpineJntNum > 1 and useUIParams and not spineAlreadySpecified
+    if useUIParams:
+        fingerNum = int(settings.globalPrefs["fingerNum"])
+        # done
+        toeNum = int(settings.globalPrefs["toeNum"])
+        midSpineJntNum = int(settings.globalPrefs["spineCtrlNum"]) - 2
+        neckJntNum = int(settings.globalPrefs["neckNum"])
 
-                    aData = renameProxyLocInDataStr(aExistingNeckJnts[0], "neck_loc", aData)
-                    #log_debug("before for i in range(1, len(aExistingNeckJnts)): aData is %s" % aData)
-                    # multiple neck joints in aData, rename neck_1_loc to neck_loc and delete others
-                    for i in range(1, len(aExistingNeckJnts)):
-                        aData = removeProxyLocFromDataStr(aExistingNeckJnts[i], aData)
+        #log_debug("before neckJntNum != aDataNeckJntNum: aData is %s" % aData)
+        if neckJntNum != aDataNeckJntNum:
+            aExistingNeckJnts = objExistInProxyDataStr(
+                ["neck_loc", "neck_1_loc", "neck_2_loc", "neck_3_loc", "neck_4_loc"], aData)
+            # log_debug("before len(aExistingNeckJnts) > 1: aData is %s" % aData)
+            if len(aExistingNeckJnts) > 1:
+                aData = renameProxyLocInDataStr(aExistingNeckJnts[0], "neck_loc", aData)
+            # log_debug("before for i in range(1, len(aExistingNeckJnts)): aData is %s" % aData)
+            # multiple neck joints in aData, rename neck_1_loc to neck_loc and delete others
+            for i in range(1, len(aExistingNeckJnts)):
+                aData = removeProxyLocFromDataStr(aExistingNeckJnts[i], aData)
 
-                #log_debug("neckJntNum != aDataNeckJntNum: aData is %s" % aData)
-            else:
-                log_debug("neckAlreadySpecified: aData is %s" % aData)
-                neckAlreadySpecified = int(True)
-
-            if midSpineJntNum != aDataMidSpineJntNum:
-                aExistingMidSpineJnts = objExistInProxyDataStr(
-                    ["spine_mid_loc", "spine_mid_1_loc", "spine_mid_2_loc", "spine_mid_3_loc", "spine_mid_4_loc",
-                     "spine_mid_5_loc", "spine_mid_6_loc", "spine_mid_7_loc", "spine_mid_8_loc", "spine_mid_9_loc"],
-                    aData)
-                if len(aExistingMidSpineJnts) > 1:
-                    aData = renameProxyLocInDataStr(aExistingMidSpineJnts[0], "spine_mid_loc", aData)
-                    # multiple midSpine joints in aData, rename spine_mid_1_loc to spine_mid_loc and delete others
-                    for i in range(1, len(aExistingMidSpineJnts)):
-                        aData = removeProxyLocFromDataStr(aExistingMidSpineJnts[i], aData)
-                log_debug("midSpineJntNum != aDataMidSpineJntNum: aData is %s" % aData)
-            else:
-                log_debug("spineAlreadySpecified: aData is %s" % aData)
-                spineAlreadySpecified = int(True)
-            log_debug("useUIParams: aData is %s" % aData)
+        # log_debug("neckJntNum != aDataNeckJntNum: aData is %s" % aData)
         else:
-            fingerNum = aDataFingerNum
-            toeNum = aDataToeNum
-            midSpineJntNum = aDataMidSpineJntNum
-            neckJntNum = aDataNeckJntNum
-            # update sliders with current proxy values
-            pm.intSliderGrp('moSklMkrFingerNumIntSldrGrp', e=1, v=fingerNum)
-            pm.intSliderGrp('moSklMkrToeNumIntSldrGrp', e=1, v=toeNum)
-            if pm.intSliderGrp('moSklMkrMidSpineNumIntSldrGrp', q=1, ex=1):
-                pm.intSliderGrp('moSklMkrMidSpineNumIntSldrGrp', e=1, v=(midSpineJntNum + 2))
+            log_debug("neckAlreadySpecified: aData is %s" % aData)
+            neckAlreadySpecified = int(True)
 
-            if pm.intSliderGrp('moSklMkrNeckNumIntSldrGrp', q=1, ex=1):
-                pm.intSliderGrp('moSklMkrNeckNumIntSldrGrp', e=1, v=neckJntNum)
-
-        log_debug("End Window moSklMkrWin aData is : %s" % aData)
+        if midSpineJntNum != aDataMidSpineJntNum:
+            aExistingMidSpineJnts = objExistInProxyDataStr(
+                ["spine_mid_loc", "spine_mid_1_loc", "spine_mid_2_loc", "spine_mid_3_loc", "spine_mid_4_loc",
+                    "spine_mid_5_loc", "spine_mid_6_loc", "spine_mid_7_loc", "spine_mid_8_loc", "spine_mid_9_loc"],
+                aData)
+            if len(aExistingMidSpineJnts) > 1:
+                aData = renameProxyLocInDataStr(aExistingMidSpineJnts[0], "spine_mid_loc", aData)
+                # multiple midSpine joints in aData, rename spine_mid_1_loc to spine_mid_loc and delete others
+                for i in range(1, len(aExistingMidSpineJnts)):
+                    aData = removeProxyLocFromDataStr(aExistingMidSpineJnts[i], aData)
+            log_debug("midSpineJntNum != aDataMidSpineJntNum: aData is %s" % aData)
+        else:
+            log_debug("spineAlreadySpecified: aData is %s" % aData)
+            spineAlreadySpecified = int(True)
+        log_debug("useUIParams: aData is %s" % aData)
     else:
-        pm.warning("Unable to continue.  Open the skeletonMaker UI and try again.")
-        return ""
+        fingerNum = aDataFingerNum
+        toeNum = aDataToeNum
+        midSpineJntNum = aDataMidSpineJntNum
+        neckJntNum = aDataNeckJntNum
+        # update sliders with current proxy values
 
-    print "\n$fingerNum = " + str(fingerNum)
+        if pm.intSliderGrp('moSklMkrFingerNumIntSldrGrp', q=1, ex=1):
+            pm.intSliderGrp('moSklMkrFingerNumIntSldrGrp', e=1, v=fingerNum)
+        if pm.intSliderGrp('moSklMkrToeNumIntSldrGrp', q=1, ex=1):
+            pm.intSliderGrp('moSklMkrToeNumIntSldrGrp', e=1, v=toeNum)
+        if pm.intSliderGrp('moSklMkrMidSpineNumIntSldrGrp', q=1, ex=1):
+            pm.intSliderGrp('moSklMkrMidSpineNumIntSldrGrp', e=1, v=(midSpineJntNum + 2))
+        if pm.intSliderGrp('moSklMkrNeckNumIntSldrGrp', q=1, ex=1):
+            pm.intSliderGrp('moSklMkrNeckNumIntSldrGrp', e=1, v=neckJntNum)
 
-    delRingCup = int(False)
-    delPinkyCup = int(False)
+
+    log_info("\n$fingerNum = " + str(fingerNum))
+
+    delRingCup = 0
+    delPinkyCup = 0
     aFingersToDelete = []
     if fingerNum == 2:
         aFingersToDelete = ["middle", "ring", "pinky"]
@@ -1189,7 +1179,6 @@ def getProxyLocLocation(proxyLocName, aData):
             aRet[1] = float(transStr[1])
             aRet[2] = float(transStr[2])
             # rot
-            log_debug(" rotStr %s" % rotStr)
             aRet[3] = float(rotStr[0])
             aRet[4] = float(rotStr[1])
             aRet[5] = float(rotStr[2])
@@ -1206,10 +1195,16 @@ def getProxyLocLocation(proxyLocName, aData):
 
 
 def makeWireController(wireType, facingAxis, aOffset, size):
-    aStr = utils.wireController(wireType, facingAxis, aOffset, size, False, True)
+    if facingAxis == 0: facingString = "x+"
+    elif facingAxis == 1: facingString = "y+"
+    elif facingAxis == 2: facingString = "z+"
+    elif facingAxis == 3: facingString = "x-"
+    elif facingAxis == 4: facingString = "y-"
+    elif facingAxis == 5: facingString = "z-"
+
+    curve = curveLib.wireController(type=wireType, facingAxis=facingString, aOffset=aOffset, size=size, getIns=False, useWS=True)
 
     # builds a control curve
-    curve = aStr[0]
     # add hidden atts
     globalScale = float(settings.globalPrefs["globalScale"])
     utils.setWireAttributes(curve, ["wireScale",
@@ -1660,32 +1655,26 @@ def encodeLocStructure(rootLoc, preserveOffsets):
 
 def skeletonizeProxy(spineWtJntNum='global'):
     """
-    create skinJnt from proxy
+    create skinJnt from
         :param spineWtJntNum='global': 
     """
     # root
     tJntGrp = ''
-    aJnts = duplicateJointHierarchy(['spine_grpLoc'],
-                                    ['C_root_jnt'],
-                                    tJntGrp)
+    pm.delete(pm.ls('C_root_jnt'))
+    aJnts = duplicateJointHierarchy(['spine_grpLoc'], ['C_root_jnt'], tJntGrp)
     tJntGrp = aJnts[0]
 
-
-
-    # spine
+    ######### spine #########
 
     if spineWtJntNum == 'global':
         spineWtJntNum=int(settings.globalPrefs["spineJntNum"])
-    
+
     # insert weight split jnts
     upArmSplitNum=int(settings.globalPrefs["upArmSplitNum"])
     foreArmSplitNum=int(settings.globalPrefs["foreArmSplitNum"])
     upLegSplitNum=int(settings.globalPrefs["upLegSplitNum"])
     kneeSplitNum=int(settings.globalPrefs["lowLegSplitNum"])
-    spineLo = 'spine_low_loc'
-    spineEnd = 'spine_end_loc'
-    spineHi = 'spine_hi_loc'
-    
+
     spineMidJntsNum = len(pm.ls('spine_mid_*_loc'))
     aMidSpineJnts = []
     if spineMidJntsNum > 0:
@@ -1694,18 +1683,34 @@ def skeletonizeProxy(spineWtJntNum='global'):
     else:
         aMidSpineJnts.append('spine_mid_loc')
     if spineWtJntNum>0:
-        
-        aSpineRigCtrlJnts=[spineLo]
+
+        aSpineRigCtrlJnts=['spine_low_loc']
         # need to get spine jnts -- {$hipJnt, $rootJnt, $midJnt1, [$midJnt2, $midJnt3, ...], $hiJnt, $endJnt}
         aSpineRigCtrlJnts=aSpineRigCtrlJnts + aMidSpineJnts
-        aSpineRigCtrlJnts.append(str(spineHi))
-        aSpineRigCtrlJnts.append(str(spineEnd))
-        
-        
-        makeSpine(aSpineRigCtrlJnts, spineWtJntNum, parentTo='C_root_jnt')
-    
+        aSpineRigCtrlJnts.append('spine_hi_loc')
 
-    #pelvis
+
+        log_debug('aSpineRigCtrlJnts is %s '%aSpineRigCtrlJnts)
+        log_debug('spineWtJntNum is %s '%spineWtJntNum)
+
+        spineJnts = makeSpine(aSpineRigCtrlJnts, spineWtJntNum, parentTo='C_root_jnt')
+
+    log_debug('Done skeletonProxy spine')
+
+    ######### chest #########
+
+    aJnts = duplicateJointHierarchy(['spine_hi_loc', 'spine_end_loc'],
+                                    ['C_chest01_skinJnt', 'C_chest02_skinJntEnd'],
+                                    tJntGrp)
+    orientJoints(aJnts, "xzy", "zup")
+    pm.joint(aJnts[-1], zso=1, ch=1, e=1, oj='none')
+
+    pm.parent('C_chest01_skinJnt', spineJnts[-1])
+
+    log_debug('Done skeletonProxy chest')
+
+    ######### pelvis #########
+
     aJnts = duplicateJointHierarchy(['spine_low_loc', 'hip_loc'],
                                     ['C_pelvis01_skinJnt', 'C_pelvis02_skinJntEnd'],
                                     tJntGrp)
@@ -1715,7 +1720,8 @@ def skeletonizeProxy(spineWtJntNum='global'):
     log_debug('Done skeletonProxy pelvis')
 
 
-    # neck
+    ######### neck #########
+
     tJntGrp = 'C_chest01_skinJnt'
     neck_proxy_names = []
     neck_rig_names = []
@@ -1740,7 +1746,8 @@ def skeletonizeProxy(spineWtJntNum='global'):
                                     tJntGrp)
     orientJoints(aJnts, "xzy", "zup")
 
-    # jaw and eyes
+    ######### jaw and eyes #########
+
     tJntGrp = 'C_head01_skinJnt'
     aJnts = duplicateJointHierarchy(["head_01_loc", "jaw_01_loc"],
                                     ["C_jaw01_skinJnt", "C_jaw02_skinJnt"],
@@ -1752,7 +1759,9 @@ def skeletonizeProxy(spineWtJntNum='global'):
     orientJoints(aJnts, "xzy", "zup")
     pm.mirrorJoint(aJnts[0], mirrorBehavior=1, searchReplace=("L_", "R_"))
 
-    ###  Arm
+
+    #########  Arm #########
+
     tJntGrp = 'C_chest01_skinJnt'
     aJnts = duplicateJointHierarchy(["spine_end_loc", "L_arm01_loc", "L_arm02_loc", "L_wrist_loc"],
                                     ["L_clav01_skinJnt", "L_arm01_skinJnt", "L_arm02_skinJnt", "L_hand01_skinJnt"],
@@ -1765,7 +1774,8 @@ def skeletonizeProxy(spineWtJntNum='global'):
 
     #utils.addTwistJnts(foreArmSplitNum, "L_arm02_skinJnt", "L_hand01_skinJnt")
 
-    # Finger
+    ######### Finger #########
+
     fingers = ['pinky', 'ring', 'middle', 'index', 'thumb']
     tJntGrp = 'L_hand01_skinJnt'
     for finger in fingers:
@@ -1795,7 +1805,7 @@ def skeletonizeProxy(spineWtJntNum='global'):
     pm.mirrorJoint(aJnts[0], mirrorBehavior=0, searchReplace=("L_", "R_"))
     log_debug('Done skeletonProxy arm')
 
-    ### Leg
+    ######### Leg #########
     tJntGrp = 'C_pelvis02_skinJntEnd'
     aJnts = duplicateJointHierarchy(
         ["L_leg01_loc", "L_leg02_loc", "L_ankle_loc", "L_ball_loc", "L_toe_loc"],
@@ -1936,26 +1946,26 @@ def orientJointBasedOnChildJntPos(jnt, childJnt, aXyzCond, orient, trueSecOrient
 
 
 
-def makeSpine(aSpineRigCtrlJnts, spineJntNum, parentTo='C_root_jnt'):
-    
+def makeSpine(spineTemplateJnts, spineSkinJntNum, parentTo='C_root_jnt'):
+
     # creates spine skinJoints from template joints
     # $aSpineRigCtrlJnts = joints on base skeleton to which the spline curve clusters will be parented (no shaper, will be added in this fn)
     # $aSpineRigCtrlJnts = {$hipJnt, $rootJnt, $midJnt1, [$midJnt2, $midJnt3, ...], $hiJnt, $endJnt}
     # $spineJntNum is number of spine jnts to create
-    
+
     aStr=[]
     aTrans=[]
 
     spineCurveGrp =str(pm.group(em=1,name="C_spineCrv_grp"))
 
     tLoc = pm.spaceLocator(name="skeletonizeTemp_loc")
-    curveStr="curve -d 3"
-    
-    for i in range(0,len(aSpineRigCtrlJnts)):
-        utils.snap(aSpineRigCtrlJnts[i], tLoc)
+    curveStr="curve -d 2"
+
+    for i in range(0, len(spineTemplateJnts)):
+        utils.snap(spineTemplateJnts[i], tLoc)
         aTrans=pm.xform(tLoc, q=1,ws=1,t=1)
         curveStr+=" -p " + str(aTrans[0]) + " " + str(aTrans[1]) + " " + str(aTrans[2])
-        
+
     curveStr+=" -n " + "C_ikSpline_crv"
     spineCurve=str(pm.mel.eval(curveStr))
     # parent curve
@@ -1967,18 +1977,27 @@ def makeSpine(aSpineRigCtrlJnts, spineJntNum, parentTo='C_root_jnt'):
     aSpineJntNames=[]
     # fill aSpineJntNames
     #int $spineJntNum = int(abRTGetGlobal("spineJntNum"));
-    
-    for i in range(0,spineJntNum - 1):
+
+    for i in range(0,spineSkinJntNum - 1):
         aSpineJntNames.append("C_spine%02d_skinJnt"%(i+1))
-    aSpineJntNames.append("C_chest01_skinJnt")
+
+    #aSpineJntNames.append("C_chest01_skinJnt")
+    log_debug('rebuilding Curve with %s divisions'%spineSkinJntNum)
     aStr=pm.rebuildCurve(spineCurve,
-        rt=0,ch=1,end=1,d=3,kr=0,s=0,kcp=0,tol=0.01,kt=0,rpo=0,kep=1)
-    
+        rt=0,ch=1,end=1,d=spineSkinJntNum,kr=0,s=0,kcp=0,tol=0.01,kt=0,rpo=0,kep=1)
+
     # create spine joints
     rebuiltSpineCurve=aStr[0]
+
 
     aRigSpineJnts= makeSpineJntsFromCurve(rebuiltSpineCurve, aSpineJntNames, parentTo, False)
     pm.delete(rebuiltSpineCurve)
     # orient and parent
-    orientJoints(aRigSpineJnts, "xyz", "zdown")
+    orientJoints(aRigSpineJnts, "xzy", "zup")
+    
+    # zero out last joint orient
+    utils.zeroJointOrient(aSpineJntNames[-1])
+
     pm.parent(aRigSpineJnts[0], parentTo)
+
+    return aSpineJntNames
