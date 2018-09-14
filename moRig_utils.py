@@ -3,7 +3,6 @@ from mo_Utils.mo_logging import log_debug
 from mo_Utils.mo_logging import log_info
 import moRig_settings as settings
 
-
 # copies from mo_riggUtils
 
 def snap(driver, driven, typeCnx='parent', extraDrivers=(), skip=[]):
@@ -201,10 +200,7 @@ def copyWireAttributes(curve, mCtrl):
         aWireAtts.append("wireFacingAxis")
         aWireAtts.append(str(str(pm.getAttr(curve + ".wireFacingAxis"))))
 
-    abRTSetWireAttributes(mCtrl, aWireAtts)
-
-
-# now add atts
+    setWireAttributes(mCtrl, aWireAtts)
 
 def getMaxDim(obj):
     aBBox = pm.xform(obj, q=1, boundingBox=1, ws=1)
@@ -221,7 +217,7 @@ def getMaxDim(obj):
 
 
 def rigRootFolder():
-    charName = settings.getGlobal["name"]
+    charName = settings.globalPrefs["name"]
     # makes the root folder for all the riggery or returns it's path if it already exists
     folderName = charName + "_world"
     if not pm.objExists(folderName):
@@ -509,7 +505,7 @@ def setScale():
     avgHeight = settings.globalPrefs["avgHeight"]
     scale = height / avgHeight
     scaleStr = str(scale)
-    settings["globalScale"] = scaleStr
+    settings.globalPrefs["globalScale"] = scaleStr
 
     # fill the masterScaleJnt field to flag that scale has been determined for this jnt
     # pm.mel.abRTSetUITxtFld("masterScaleJnt", rootJnt)
@@ -810,7 +806,7 @@ def makeCurveFromJoints(jointList, name='C_spine_crv', rebuild=True, divisions=3
     return spineCurve
 
 
-def createJointsAlongCurve(crv, amount=4, name='C_spine##_fkJnt'):
+def createJointsAlongCurve(crv, amount=4, name='C_spine##_fkJnt', jointRadius=1):
     joints = []
     crv_info = '%s_pointinfo' % crv
     pm.delete(pm.ls(crv_info))
@@ -818,20 +814,19 @@ def createJointsAlongCurve(crv, amount=4, name='C_spine##_fkJnt'):
     pm.setAttr('%s.turnOnPercentage' % crv_info, 1)
 
     pm.connectAttr('%s.worldSpace[0]' % crv, '%s.inputCurve' % crv_info, f=1)
-
+    amount = amount - 1
     for i in range(0, amount):
-        log_debug(1.00 / amount * float(i))
         pm.setAttr('%s.parameter' % crv_info, (1.00 / amount * float(i)))
-        log_debug(pm.getAttr('%s.parameter' % crv_info)) 
+        # log_debug(pm.getAttr('%s.parameter' % crv_info)) 
         position_on_curve = pm.getAttr('%s.position' % crv_info)
 
         # create joint at position
-        j = pm.joint(n=name.replace('##', '%02d' % (i+1), p=position_on_curve))
+        j = pm.joint(n=name.replace('##', '%02d' % (i+1)), p=position_on_curve, radius=jointRadius)
         joints.append(j)
     
     pm.setAttr('%s.parameter' % crv_info, 1)
     position_on_curve = pm.getAttr('%s.position' % crv_info)
-    j = pm.joint(n=name.replace('##', '%02d' % amount), p=position_on_curve)
+    j = pm.joint(n=name.replace('##', '%02d' % (amount+1)) + 'End', p=position_on_curve, radius=jointRadius)
     joints.append(j)
 
     pm.delete(pm.ls(crv_info))
@@ -842,3 +837,8 @@ def zeroJointOrient(jnt):
     pm.setAttr('%s.jointOrientX'%jnt, 0)
     pm.setAttr('%s.jointOrientY'%jnt, 0)
     pm.setAttr('%s.jointOrientZ'%jnt, 0)
+
+def setJointRadiusHierarchy(rootJnt = 'C_root_jnt', radius=0.5):
+    alljoints = [rootJnt] + pm.listRelatives(rootJnt, children=1, ad=1, type='joint')
+    for j in alljoints:
+        pm.setAttr('%s.radius' % j, radius)

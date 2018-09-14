@@ -107,41 +107,24 @@ def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION', scale=1):
     else:
         color = 'red'
 
-    id = '%s_leg01' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
-    # pm.xform('%sShape.cv[0:]' % jnts[id]['fkCtrl'], s=(1.75, 1, 1), t=(1.5, 0, 0), r=1)
-    # group and align
-    zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
-    riggUtils.snap(jnts[id]['fkJnt'], zero)
-    riggUtils.grpIn('%s_leg_ctrlGrp' % side, zero)  # parent leg_ctrlGrp
-    riggUtils.grpIn(parent, '%s_leg_ctrlGrp' % side)
-    # limit
-    riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
+    zero = ''
+    ids = ['%s_leg01' % side, '%s_leg02' % side, '%s_leg03' % side]
+    for id in ids:
+        jnts[id]['fkCtrl'] = curveLib.wireController(type='circle', name='%s_fkCtrl' % id, size=(scale), color=color, facingAxis='x+')
+        # pm.xform('%sShape.cv[0:]' % jnts[id]['fkCtrl'], s=(1.75, 1, 1), t=(1.5, 0, 0), r=1)
+        # group and align
+        zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
+        riggUtils.snap(jnts[id]['fkJnt'], zero)
+        riggUtils.grpIn('%s_leg_ctrlGrp' % side, zero)  # parent leg_ctrlGrp
+        riggUtils.grpIn(parent, '%s_leg_ctrlGrp' % side)
+        # limit
+        riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=1, k=0, cb=0)
 
-    id = '%s_leg02' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
-    # group and align
-    zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
-    riggUtils.snap(jnts[id]['fkJnt'], zero)
-    pm.parent(zero, jnts['%s_leg01' % side]['fkCtrl'])  # parent leg01
-    # limit
-    riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
-
-    # leg03 is technically foot in human setup, so we will hide ctrl
-    # leg03_ctrl drive leg03_endJnt and therefore foot01_ctrl and will be used for stretch setup
-    # to hook up length to zero tx
-    id = '%s_leg03' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=scale, color=color)
-    # group and align
-    zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
-    riggUtils.snap(jnts[id]['fkJnt'], zero)
-    pm.parent(zero, jnts['%s_leg02' % side]['fkCtrl'])  # parent leg02
-    # limit
-    riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
+    # hide zero of leg03
     zero.hide()
 
     id = '%s_foot01' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=(scale*.75), color=color)
+    jnts[id]['fkCtrl'] = curveLib.wireController(type='circle', name='%s_fkCtrl' % id, size=(scale), color=color, facingAxis='x+')
     # group and align
     zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
     riggUtils.snap(jnts[id]['ctrlJnt'], zero)
@@ -150,7 +133,7 @@ def create_ctrl_fk_leg(jnts, side='L', parent='DIRECTION', scale=1):
     riggUtils.cleanUpAttr(sel=[jnts[id]['fkCtrl']], listAttr=['sx', 'sy', 'sz', 'tx', 'ty', 'tz'], l=0, k=0, cb=0)
 
     id = '%s_foot02' % side
-    jnts[id]['fkCtrl'] = curveLib.createShapeCtrl(type='circle', name='%s_fkCtrl' % id, scale=(scale*.75), color=color)
+    jnts[id]['fkCtrl'] = curveLib.wireController(type='circle', name='%s_fkCtrl' % id, size=(scale), color=color, facingAxis='x+')
     # group and align
     zero = riggUtils.grpCtrl(ctrl=jnts[id]['fkCtrl'], sdk=1)
     riggUtils.snap(jnts[id]['ctrlJnt'], zero)

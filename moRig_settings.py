@@ -5,17 +5,17 @@ def initGlobals():
     global globalPrefs
     globalPrefs = {}
     globalPrefs["skeletonName"] = "skeleton"
-    globalPrefs["leftPrefix"] = "lf_"
-    globalPrefs["rightPrefix"] = "rt_"
+    globalPrefs["leftPrefix"] = "L_"
+    globalPrefs["rightPrefix"] = "R_"
     globalPrefs["name"] = "human"
-    globalPrefs["globalScale"] = "1"
+    
     globalPrefs["avgHeight"] = "183" # units in avg height -- used to determine scale {183~6'0")
-    globalPrefs["deleteMeGrp"] = "abRTDeleteMeWhenDone" # name of group to put temp rig building transforms in
+    globalPrefs["deleteMeGrp"] = "deleteMeWhenDone" # name of group to put temp rig building transforms in
     globalPrefs["ctrlDir"] = "ctrl_grp" # name of group to put control curves in
     globalPrefs["versionNum"] = "1.0" # script version number
     globalPrefs["premiumVersion"] = "1"
     globalPrefs["deleteRigCreatedBindPoses"] = "0" # if true, bindPoses created during the rigging process will be deleted
-    #globalPrefs["pvOffset"] = "20"
+
     globalPrefs["eyeCtrlOffset"] = "40" # eye ctrl offset from eye jnts
     globalPrefs["zeroFreezeGroupSuffix"] = "zeroFrzGrp" # zero group freeze naming suffix (no other nodes will end with this suffix)
     globalPrefs["includeHeadNeckTransAtts"] = "1" # show the fk (trans and useRootSpace) options on head and neck controls
@@ -25,6 +25,11 @@ def initGlobals():
     globalPrefs["footIKCtrlAtAnkle"] = "1" # foot IK control rotates around the heel or the ankle
     globalPrefs["createLimbWtJntsInHierarchy"] = "1" # if true, limb weight joints will be created in a hierarchical chain;  otherwise, they'll be separate and apart
      
+    # scaling
+    globalPrefs["globalScale"] = "1"
+    globalPrefs["jointRadius"] = "0.4"
+    globalPrefs["ctrlSize"] = "1"
+
     # proxy skeleton
     globalPrefs["spineCtrlNum"] = "3" 
     globalPrefs["neckNum"] = "1" 

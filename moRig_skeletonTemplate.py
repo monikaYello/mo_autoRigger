@@ -1653,7 +1653,7 @@ def encodeLocStructure(rootLoc, preserveOffsets):
 
 
 
-def skeletonizeProxy(spineWtJntNum='global'):
+def skeletonizeProxy(spineWtJntNum='global', jointRadius=0.4):
     """
     create skinJnt from
         :param spineWtJntNum='global': 
@@ -1801,6 +1801,7 @@ def skeletonizeProxy(spineWtJntNum='global'):
             tJntGrp)
 
         orientJoints(aFingerJnts, "xyz", "zdown")
+    
     # mirror jnts
     pm.mirrorJoint(aJnts[0], mirrorBehavior=0, searchReplace=("L_", "R_"))
     log_debug('Done skeletonProxy arm')
@@ -1819,6 +1820,10 @@ def skeletonizeProxy(spineWtJntNum='global'):
     # orientJointBasedOnChildJntPos(aJnts[1], aJnts[2], [0, 0, 1], "xzy", "zup", "ydown")
 
     pm.mirrorJoint(aJnts[0], mirrorBehavior=0, searchReplace=("L_", "R_"))
+
+    # resize joints
+    utils.setJointRadiusHierarchy("C_root_jnt", jointRadius)
+
     log_debug('Done skeletonProxy leg')
 
     # hide root loc
@@ -1833,12 +1838,9 @@ def duplicateJointHierarchy(aTargets, aNames, grp):
     aTargetLen = len(aTargets)
     jnt = ""
     aRet = range(aTargetLen)
-    aRel = range(aTargetLen)
     aStr = range(aTargetLen)
 
     xForm = range(aTargetLen)
-    jointXform = range(aTargetLen)
-    radius = 0.0
     aIsJnt = range(aTargetLen)
     i = 0
     # tracks non joints so they can be aligned after the chain has been created

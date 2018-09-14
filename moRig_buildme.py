@@ -1,4 +1,5 @@
 import sys
+import maya.cmds as mc
 sys.path.append('D:\Google Drive\PythonScripting\mo_autoRigger')
 sys.path.append('D:\Google Drive\PythonScripting\scripts')
 
@@ -10,15 +11,20 @@ moRig_UI.skeletonMakerUI()
 
 # Build tempate script
 import moRig_skeletonTemplate as skelTemp
+reload(skelTemp)
 import moRig_settings as settings
 settings.initGlobals()
+settings.globalPrefs["spineCtrlNum"] = "3"
+settings.globalPrefs["globalScale"] = ".4"
 skelTemp.makeProxySkeleton()
+mc.scale('skeleton_proxy_grpLoc', [0.34,0.34,0.34])
 
 # Build skinJnts from template
 import moRig_skeletonTemplate as skelTemp
+reload(skelTemp)
+settings.globalPrefs["spineJntNum"] = "6"
 skelTemp.skeletonizeProxy()
 
-print  'test'
 ## or temporary work with autoRigger_lumaHuman.003
 
 # Build ctrlJnts form skinJnts
@@ -56,7 +62,7 @@ reload(leg)
 leg.create_ctrl_fk_leg(jnts, scale=scale)
 leg.create_ctrl_ik_leg(jnts, scale=scale)
 
-biped.define_fkCtrls(jnts)
+biped.define_ikJnts(jnts)
 
 # ikfk with switch
 arm.setup_fk_arm(jnts, RL='L')
@@ -64,7 +70,11 @@ arm.setup_ik_arm(jnts, RL='L')
 arm.setup_ikfkSwitch_arm(jnts)
 
 # spine
-biped.create_ctrl_spine(jnts, spine_count=3, scale=scale*2)
+reload(spine)
+spine.create_fk_spine(amount=3)
+reload(spine)
+spine.create_ctrl_spine(jnts)
+
 spine.setup_spine(jnts)
 
 # space switch

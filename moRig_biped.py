@@ -46,40 +46,40 @@ arm.build_ctrlJnts_arm()
 leg.build_ctrlJnts_leg()
 
 # dictionary
-jnts={}
-biped.define_ctrlJnts(jnts)
+jntsDic={}
+biped.define_ctrlJnts(jntsDic)
 
-# ikfk jnts
-arm.build_jnts_arm(jnts, mode=['ik', 'fk'])
-leg.build_jnts_leg(jnts, mode=['ik', 'fk'])
+# ikfk jntsDic
+arm.build_jnts_arm(jntsDic, mode=['ik', 'fk'])
+leg.build_jnts_leg(jntsDic, mode=['ik', 'fk'])
 
-biped.define_fkJnts(jnts)
-biped.define_ikJnts(jnts)
+biped.define_fkJnts(jntsDic)
+biped.define_ikJnts(jntsDic)
 
 # ctrls
 scale = 1
 biped.createWorld(scale=scale)
-arm.create_ctrl_fk_arm(jnts, scale=scale)
-arm.create_ctrl_ik_arm(jnts, scale=scale)
+arm.create_ctrl_fk_arm(jntsDic, scale=scale)
+arm.create_ctrl_ik_arm(jntsDic, scale=scale)
 
 
 reload(leg)
-leg.create_ctrl_fk_leg(jnts, scale=scale)
-leg.create_ctrl_ik_leg(jnts, scale=scale)
+leg.create_ctrl_fk_leg(jntsDic, scale=scale)
+leg.create_ctrl_ik_leg(jntsDic, scale=scale)
 
-biped.define_fkCtrls(jnts)
+biped.define_fkCtrls(jntsDic)
 
 # ikfk with switch
-arm.setup_fk_arm(jnts, RL='L')
-arm.setup_ik_arm(jnts, RL='L')
-arm.setup_ikfkSwitch_arm(jnts)
+arm.setup_fk_arm(jntsDic, RL='L')
+arm.setup_ik_arm(jntsDic, RL='L')
+arm.setup_ikfkSwitch_arm(jntsDic)
 
 # spine
-biped.create_ctrl_spine(jnts, spine_count=3, scale=scale*2)
-spine.setup_spine(jnts)
+biped.create_ctrl_spine(jntsDic, spine_count=3, scale=scale*2)
+spine.setup_spine(jntsDic)
 
 # space switch
-arm.setup_fk_spaceswitch_arm(jnts)
+arm.setup_fk_spaceswitch_arm(jntsDic)
 '''
 
 def test():
@@ -99,7 +99,7 @@ def define_color(side):
 		return 'yellow'
 
 
-def define_ctrlJnts(jnts={}):
+def define_ctrlJnts(jntsDic={}):
 	ctrljnts = {}
 	try:
 		ctrljnts['root'] = pm.PyNode('root_ctrlJnt')
@@ -110,6 +110,9 @@ def define_ctrlJnts(jnts={}):
 		existingJnts = pm.ls('C_%s*_ctrlJnt' % limb) + pm.ls('C_%s*_ctrlJntEnd' % limb)  # * at end with or without JntEnd
 		for j in existingJnts:
 			ctrljnts['%s%s' % (limb, j.split(limb)[-1].split('_ctrlJnt')[0])] = {'ctrlJnt': j}
+	
+	merge_nested_dic(jntsDic, ctrljnts)
+	
 	# R/L limbs
 	for limb in ['clavicle', 'arm', 'hand', 'eye', 'leg', 'foot']:
 		for side in ['R', 'L']:
@@ -118,112 +121,152 @@ def define_ctrlJnts(jnts={}):
 			for j in existingJnts:
 				ctrljnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ctrlJnt')[0])] = {'ctrlJnt': j}
 	print ctrljnts
-	return merge_nested_dic(jnts, ctrljnts)
+	return merge_nested_dic(jntsDic, ctrljnts)
 
 
 
 
-def define_fkJnts(jnts={}):
+def define_fkJnts(jntsDic={}):
 	'''
-	Define fk jnts based on searching for '_fkJnt' in scene and merge them into existing Jnts Dictionary
+	Define fk jntsDic based on searching for '_fkJnt' in scene and merge them into existing Jnts Dictionary
 	Args:
-	    jnts: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
+	    jntsDic: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
 
 	Returns: Jnts Dictionary with found  fkJnts added
 	'''
-	armjnts = {}
+	fkjnts = {}
+	# Center
+	side = 'C'
+	for limb in ['spine', 'chest', 'neck', 'head', 'pelvis']:
+		existingJnts  = pm.ls('%s_%s*_fkJnt' % (side,limb))
+		for j in existingJnts:
+			print 'j is %s'%j 
+			fkjnts['%s%s' % (limb, j.split(limb)[-1].split('_fkJnt')[0])] = {'fkJnt': j}
+	
+	merge_nested_dic(jntsDic, fkjnts)
+	
+	# R/L limbs
 	for limb in ['clavicle', 'arm', 'hand', 'leg', 'foot']:
 		for side in ['R', 'L']:
 			existingJnts = pm.ls('%s_%s*_fkJnt' % (side, limb)) + pm.ls(
 				'%s_%s*_fkJntEnd' % (side, limb))  # * at end with or without JntEnd
 			for j in existingJnts:
-				armjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_fkJnt')[0])] = {'fkJnt': j}
+				
+				fkjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_fkJnt')[0])] = {'fkJnt': j}	
+	if len(fkjnts) == 0:
+		lg.info('No *_fkJnt found.')
+	print 'fkJnts is %s'%fkjnts
+	return merge_nested_dic(jntsDic, fkjnts)
 
-	return merge_nested_dic(jnts, armjnts)
 
-
-def define_fkCtrls(jnts={}):
+def define_fkCtrls(jntsDic={}):
 	'''
 	Define fk Ctrl based on searching for '_fkCtrl' in scene and merge them into existing Jnts Dictionary
 	Args:
-	    jnts: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
+	    jntsDic: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
 
 	Returns: Jnts Dictionary with found  fk Ctrls added
 	'''
-	armjnts = {}
+	fkCtrls = {}
 	for limb in ['clavicle', 'arm', 'hand', 'leg', 'foot']:
 		for side in ['R', 'L']:
 			existingJnts = pm.ls('%s_%s*_fkCtrl' % (side, limb))
 			for j in existingJnts:
-				armjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_fkCtrl')[0])] = {'fkCtrl': j}
+				fkCtrls['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_fkCtrl')[0])] = {'fkCtrl': j}
 
-	merge_nested_dic(jnts, armjnts)
+	merge_nested_dic(jntsDic, fkCtrls)
 
 	# Center
-	cntrjnts = {}
+	fkCtrls = {}
 	side = 'C'
 	for limb in ['spine', 'chest', 'neck', 'head', 'pelvis']:
 		existingJnts  = pm.ls('%s_%s*_fkCtrl' % (side, limb))
 		for j in existingJnts:
-			cntrjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_fkCtrl')[0])] = {'fkCtrl': j}
+			fkCtrls['%s%s' % (limb, j.split(limb)[-1].split('_fkCtrl')[0])] = {'fkCtrl': j}
+	
+	if len(fkCtrls) == 0:
+		lg.info('No *_fkCtrl found.')
+	
+	return merge_nested_dic(jntsDic, fkCtrls)
 
-	return merge_nested_dic(jnts, cntrjnts)
-
-def define_ikCtrls(jnts={}):
+def define_ikCtrls(jntsDic={}):
 	'''
 	Define fk Ctrl based on searching for '_ikCtrl' in scene and merge them into existing Jnts Dictionary
 	Args:
-	    jnts: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
+	    jntsDic: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
 
 	Returns: Jnts Dictionary with found  fk Ctrls added
 	'''
-	armjnts = {}
+	ikCtrls = {}
 	for limb in ['clavicle', 'hand','foot']:
 		for side in ['R', 'L']:
 			existingJnts = pm.ls('%s_%s*_ikCtrl' % (side, limb)) 
+			print existingJnts
 			for j in existingJnts:
-				armjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ikCtrl')[0])] = {'ikCtrl': j}
+				ikCtrls['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ikCtrl')[0])] = {'ikCtrl': j}
+				print 'R is %s' % ikCtrls
+	
+	merge_nested_dic(jntsDic, ikCtrls)
 
 	for limb in ['clavicle', 'hand','foot']:
-			for side in ['R', 'L']:
-				existingJnts = pm.ls('%s_%s*_pvecCtrl' % (side, limb)) 
-				for j in existingJnts:
-					armjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_pvecCtrl')[0])] = {'pvecCtrl': j}
-
-	merge_nested_dic(jnts, armjnts)
-
+		for side in ['R', 'L']:
+			existingJnts = pm.ls('%s_%s*_pvecCtrl' % (side, limb))
+			for j in existingJnts:
+				ikCtrls['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_pvecCtrl')[0])] = {'pvecCtrl': j}
+				print 'R clav is %s' % ikCtrls
+	
+	merge_nested_dic(jntsDic, ikCtrls)
+	
 	# Center
-	cntrjnts = {}
 	side = 'C'
 	for limb in ['spine']:
 		existingJnts  = pm.ls('%s_%s*_ikCtrl' % (side, limb))
 		for j in existingJnts:
-			cntrjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ikCtrl')[0])] = {'ikCtrl': j}
+			ikCtrls['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ikCtrl')[0])] = {'ikCtrl': j}
+			print 'C is %s' % ikCtrls
+	
+	if len(ikCtrls) == 0:
+		lg.info('No *_ikCtrls found.')
+	
+	return merge_nested_dic(jntsDic, ikCtrls)
 
-	return merge_nested_dic(jnts, cntrjnts)
 
-def define_ctrls(jnts={}):
-	jnts = define_fkCtrls(jnts=jnts)
-	jnts = define_ikCtrls(jnts=jnts)	
-	return jnts
 
-def define_ikJnts(jnts={}):
+def define_ikJnts(jntsDic={}):
 	'''
-	Define ik jnts based on searching for '_ikJnt' in scene and merge them into existing Jnts Dictionary
+	Define ik jntsDic based on searching for '_ikJnt' in scene and merge them into existing Jnts Dictionary
 	Args:
-	    jnts: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
+	    jntsDic: existing Jnts Dictionary containing skinJns, ctrlJnts etc.
 
 	Returns: Jnts Dictionary with found fkJnts added
 	'''
-	armjnts = {}
+	ikjnts = {}
 	for limb in ['clavicle', 'arm', 'hand', 'leg', 'foot']:
 		for side in ['R', 'L']:
 			existingJnts = pm.ls('%s_%s*_ikJnt' % (side, limb)) + pm.ls(
 				'%s_%s*_ikJntEnd' % (side, limb))  # * at end with or without JntEnd
 			for j in existingJnts:
-				armjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ikJnt')[0])] = {'ikJnt': j}
+				ikjnts['%s_%s%s' % (side, limb, j.split(limb)[-1].split('_ikJnt')[0])] = {'ikJnt': j}
 
-	return merge_nested_dic(jnts, armjnts)
+	if len(ikjnts) == 0:
+		lg.info('No *_ikJnt found.')
+
+	return merge_nested_dic(jntsDic, ikjnts)
+
+def define_jnts(jntsDic={}):
+
+	define_ctrlJnts(jntsDic=jntsDic)
+	define_fkJnts(jntsDic=jntsDic)
+	define_ikJnts(jntsDic=jntsDic)	
+	
+	return jntsDic
+
+def define_ctrls(jntsDic={}):
+	
+	define_fkCtrls(jntsDic=jntsDic)
+	define_ikCtrls(jntsDic=jntsDic)	
+	
+	return jntsDic
 
 
 def merge_nested_dic(d1, d2):
@@ -268,6 +311,7 @@ def createWorld(name='human', scale=1):
 	mover = curveLib.createShapeCtrl(type='MOVER', name='MOVER', scale=scale, color='blue')
 	print 'direction'
 	direction = curveLib.createShapeCtrl(type='DIRECTION', name='DIRECTION', scale=scale, color='red')
+	
 	# size attribute
 	pm.addAttr(direction, ln='size', at='double', dv=1, k=1)
 	direction.size >> direction.scaleX
@@ -296,7 +340,7 @@ def build_skinJnts_body():
 	return 'Building body skinJnts from template'
 
 
-def build_ctrlJnts_body(jnts={}):
+def build_ctrlJnts_body(jntsDic={}):
 	# delete existing
 	pm.delete(pm.ls(['Skeleton_grp', 'C_body_jntGrp']))
 
@@ -308,19 +352,19 @@ def build_ctrlJnts_body(jnts={}):
 
 	# spine
 	########################
-	jnts['spine01'] = {'ctrlJnt': pm.duplicate('C_spine01_skinJnt', n='C_spine01_ctrlJnt')[0]}
-	pm.select(jnts['spine01']['ctrlJnt'])
+	jntsDic['spine01'] = {'ctrlJnt': pm.duplicate('C_spine01_skinJnt', n='C_spine01_ctrlJnt')[0]}
+	pm.select(jntsDic['spine01']['ctrlJnt'])
 	pm.mel.searchReplaceNames("_skinJnt", "_ctrlJnt", "hierarchy")
 
-	pm.parent(jnts['spine01']['ctrlJnt'], 'C_spine_jntGrp')
-	riggUtils.grpCtrl(jnts['spine01']['ctrlJnt'])
+	pm.parent(jntsDic['spine01']['ctrlJnt'], 'C_spine_jntGrp')
+	riggUtils.grpCtrl(jntsDic['spine01']['ctrlJnt'])
 
-	# number of spine jnts for naming endjoint
+	# number of spine jntsDic for naming endjoint
 	spine_jnt_amount = len(pm.ls('C_spine*_ctrlJnt'))
 
 	# deal with children, make endJnt or delete
 	i=2
-	for childJnt in pm.listRelatives(jnts['spine01']['ctrlJnt'], children=1, type='joint', ad=1):
+	for childJnt in pm.listRelatives(jntsDic['spine01']['ctrlJnt'], children=1, type='joint', ad=1):
 		if 'spine' in childJnt.name():  # spine02, 03 ...
 			continue
 		elif childJnt == 'C_chest01_ctrlJnt':  # end joint
@@ -332,16 +376,16 @@ def build_ctrlJnts_body(jnts={}):
 
 	# chest
 	########################
-	jnts['chest01'] = {'ctrlJnt': pm.duplicate('C_chest01_skinJnt', n='C_chest01_ctrlJnt')[0]}
-	pm.select(jnts['chest01']['ctrlJnt'])
+	jntsDic['chest01'] = {'ctrlJnt': pm.duplicate('C_chest01_skinJnt', n='C_chest01_ctrlJnt')[0]}
+	pm.select(jntsDic['chest01']['ctrlJnt'])
 	pm.mel.searchReplaceNames("_skinJnt", "_ctrlJnt", "hierarchy")
 
-	pm.parent(jnts['chest01']['ctrlJnt'], 'C_spine_jntGrp')
-	riggUtils.grpCtrl(jnts['chest01']['ctrlJnt'])
+	pm.parent(jntsDic['chest01']['ctrlJnt'], 'C_spine_jntGrp')
+	riggUtils.grpCtrl(jntsDic['chest01']['ctrlJnt'])
 
 	# deal with children, make endJnt or delete
 	i = 2
-	for childJnt in pm.listRelatives(jnts['chest01']['ctrlJnt'], children=1, type='joint', ad=1):
+	for childJnt in pm.listRelatives(jntsDic['chest01']['ctrlJnt'], children=1, type='joint', ad=1):
 		#print 'childJnt chest %s' % childJnt
 		if childJnt == 'C_neck01_ctrlJnt':
 			pm.rename(childJnt, 'C_chest02_endJnt')
@@ -350,49 +394,49 @@ def build_ctrlJnts_body(jnts={}):
 
 	# neck
 	########################
-	jnts['neck01'] = {'ctrlJnt': pm.duplicate('C_neck01_skinJnt', n='C_neck01_ctrlJnt')}
-	pm.select(jnts['neck01']['ctrlJnt'])  # rename
+	jntsDic['neck01'] = {'ctrlJnt': pm.duplicate('C_neck01_skinJnt', n='C_neck01_ctrlJnt')}
+	pm.select(jntsDic['neck01']['ctrlJnt'])  # rename
 	pm.mel.searchReplaceNames("_skinJnt", "_ctrlJnt", "hierarchy")
 	# parent n grp
-	pm.parent(jnts['neck01']['ctrlJnt'], 'C_neck_jntGrp')
-	riggUtils.grpCtrl(jnts['neck01']['ctrlJnt'])
+	pm.parent(jntsDic['neck01']['ctrlJnt'], 'C_neck_jntGrp')
+	riggUtils.grpCtrl(jntsDic['neck01']['ctrlJnt'])
 	# deal with children, make endJnt or delete
-	for childJnt in pm.listRelatives(jnts['neck01']['ctrlJnt'], children=1, type='joint', ad=1):
+	for childJnt in pm.listRelatives(jntsDic['neck01']['ctrlJnt'], children=1, type='joint', ad=1):
 		#print 'childJnt neck %s' % childJnt
 		if childJnt == 'C_head01_ctrlJnt':
 			pm.rename(childJnt, 'C_neck02_ctrlJntEnd')  # create end joint from head
-			jnts['neck02'] = childJnt
+			jntsDic['neck02'] = childJnt
 		else:
 			pm.delete(childJnt)
 
 	# head
 	########################
-	jnts['head01'] = {'ctrlJnt': pm.duplicate('C_head01_skinJnt', n='C_head01_ctrlJnt')}
-	pm.select(jnts['head01']['ctrlJnt'])  # rename
+	jntsDic['head01'] = {'ctrlJnt': pm.duplicate('C_head01_skinJnt', n='C_head01_ctrlJnt')}
+	pm.select(jntsDic['head01']['ctrlJnt'])  # rename
 	pm.mel.searchReplaceNames("_skinJnt", "_ctrlJnt", "hierarchy")
 	# parent n grp
-	pm.parent(jnts['head01']['ctrlJnt'], 'C_head_jntGrp')
-	riggUtils.grpCtrl(jnts['head01']['ctrlJnt'])
+	pm.parent(jntsDic['head01']['ctrlJnt'], 'C_head_jntGrp')
+	riggUtils.grpCtrl(jntsDic['head01']['ctrlJnt'])
 	# deal with children, make endJnt or delete
 	i=2
-	for childJnt in pm.listRelatives(jnts['head01']['ctrlJnt'], children=1, type='joint', ad=1):
+	for childJnt in pm.listRelatives(jntsDic['head01']['ctrlJnt'], children=1, type='joint', ad=1):
 		#print 'childJnt head is %s' % childJnt
 		if childJnt.split('_')[-1] == 'ctrlJnt':
-			jnts['head%02d'%i] = childJnt
+			jntsDic['head%02d'%i] = childJnt
 			riggUtils.grpCtrl(childJnt)
 			i += 1
 	# pelvis
 	########################
-	jnts['pelvis01'] = {'ctrlJnt': pm.duplicate('C_pelvis01_skinJnt', n='C_pelvis01_ctrlJnt')[0]}
-	pm.select(jnts['pelvis01']['ctrlJnt'])
+	jntsDic['pelvis01'] = {'ctrlJnt': pm.duplicate('C_pelvis01_skinJnt', n='C_pelvis01_ctrlJnt')[0]}
+	pm.select(jntsDic['pelvis01']['ctrlJnt'])
 	pm.mel.searchReplaceNames("_skinJnt", "_ctrlJnt", "hierarchy")
 	# parent n grp
-	pm.parent(jnts['pelvis01']['ctrlJnt'], 'C_spine_jntGrp')
-	riggUtils.grpCtrl(jnts['pelvis01']['ctrlJnt'])
+	pm.parent(jntsDic['pelvis01']['ctrlJnt'], 'C_spine_jntGrp')
+	riggUtils.grpCtrl(jntsDic['pelvis01']['ctrlJnt'])
 	# delete legs, children of pelvis endJoint
-	pm.delete(jnts['pelvis01']['ctrlJnt'].listRelatives(children=1)[0].listRelatives(children=1))
+	pm.delete(jntsDic['pelvis01']['ctrlJnt'].listRelatives(children=1)[0].listRelatives(children=1))
 	lg.info('Done build_ctrlJnts_body')
-	return jnts
+	return jntsDic
 
 def deleteExisting(node):
 	if pm.objExists(node):
