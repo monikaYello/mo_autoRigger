@@ -164,7 +164,6 @@ def create_ctrl_spine(jnts, spine_count=4, scale=1):
 
 def create_fk_spine(amount=4):
     pm.delete(pm.ls('C_spine_splineCrv'))
-
     spineJnts = pm.ls('C_spine*_ctrlJnt')
 
     spline_crv = utils.makeCurveFromJoints(spineJnts, name='C_spine_splineCrv', rebuild=True, divisions=2)
@@ -200,7 +199,15 @@ def create_ik_spine():
 def setup_spine(jnts, fkCtrls=3):
     spineCrv = 'C_spine_splineCrv'
     pm.delete(pm.ls(spineCrv))
+    spineFkCtrls = pm.ls('C_spine*_fkCtrl', type='transform')
+    spineIkJnts = pm.ls('C_spine*_ikJnt*', type='joint')
+    spineCtrlJnts =pm.ls('C_spine*_ctrlJnt*', type='joint')
     
+    #clean up from old runs
+    utils.deleteChildrenConstraints(jnts['pelvis01']['ctrlJnt'].attr('AUTO').get())
+    utils.deleteChildrenConstraints(jnts['chest01']['ctrlJnt'].attr('AUTO').get())
+    
+
     # constrain pelvis
     pm.parentConstraint(jnts['pelvis01']['ctrl'], jnts['pelvis01']['ctrlJnt'].attr('AUTO').get(), mo=1)
     # constrain chest
@@ -213,8 +220,7 @@ def setup_spine(jnts, fkCtrls=3):
     # ik stretchy spline
 
     spline_crv = utils.makeCurveFromJoints(spineJnts, name=spineCrv, rebuild=True, divisions=2)
-
-    print 'spine curve is %s' % spline_crv
+    
     spline_ik = pm.ikHandle(n='C_spine_splineIK', sj=jnts[spine_list[0]]['ctrlJnt'], ee=jnts[spine_list[-1]]['ctrlJnt'],
                             sol='ikSplineSolver', curve=spline_crv, ccv=False)
     print 'spine_ik is %s' % spline_ik
@@ -222,14 +228,16 @@ def setup_spine(jnts, fkCtrls=3):
     spline_eff = spline_ik[1].rename('C_spine_splineEfctr')
     # spline_crv = spline_ik[2].rename('C_spine_splineCrv')
 
-    riggUtils.grpIn('RIG_NONSCALE','C_spine_nonScaleGrp')
+    riggUtils.grpIn('C_spineNonScale_grp',[spline_hndl, spline_crv])
+    riggUtils.grpIn('RIG_NONSCALE','C_spineNonScale_grp')
 
-    # skin curve to joints
-    # to bind nurbsSphere1 and pPlane1 to the skeleton containing joint2
-    
-    pm.bindSkin(spline_crv, [jnts['pelvis01']['ctrlJnt'], jnts['chest01']['ctrlJnt']])
+    # skin curve to ik joints
+    pm.select(clear=1)
+    pm.select(spineIkJnts)
+    pm.skinCluster(spineIkJnts, spline_crv, maximumInfluences=4, normalizeWeights=1, obeyMaxInfluences=True)
+
+
     log_debug( 'creating stretchy spline' )
-
     # add attributes
     pm.addAttr(jnts['chest01']['ctrl'], ln='stretchy', at='float', dv=1, k=1)
     pm.addAttr(jnts['chest01']['ctrl'], ln='follow', at='float', dv=1, k=1)
@@ -238,7 +246,7 @@ def setup_spine(jnts, fkCtrls=3):
     createStretchSpline(spline_crv, volume=1, worldScale=1, worldScaleObj='RIG_SCALE', worldScaleAttr='scaleX', disable=1, disableObj=jnts['chest01']['ctrl'], disableAttr='stretchy' )
 
     # fk - expect fkJnts having fkCtrls in right spot
-    spineFkCtrls = pm.ls('C_spine*_fkCtrl')
+    
     for spineFkCtrl in spineFkCtrls:
         log_debug('fk constraint %s'%spineFkCtrl)
         spineFkJnt = spineFkCtrl.replace('fkCtrl', 'fkJnt')
@@ -246,6 +254,10 @@ def setup_spine(jnts, fkCtrls=3):
 
     # connect ik to fk
     pm.parentConstraint(spineFkCtrls[-1], 'C_spineChest_AUTO', mo=1)
+
+    # connect spine to chest
+    ### TODO Pin to attribute blend set on chest of Lumahuman
+    pm.pointConstraint(spineCtrlJnts[-1], jnts['chest01']['ctrlJnt'])
 
     # connect rigg scale to curve
     pm.addAttr(spineCrv, ln='globalScale', at='float', dv=1, k=1)

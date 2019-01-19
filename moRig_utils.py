@@ -842,3 +842,11 @@ def setJointRadiusHierarchy(rootJnt = 'C_root_jnt', radius=0.5):
     alljoints = [rootJnt] + pm.listRelatives(rootJnt, children=1, ad=1, type='joint')
     for j in alljoints:
         pm.setAttr('%s.radius' % j, radius)
+
+
+def deleteChildrenConstraints(objList=None, allhierarchy=0):
+	if objList == None:
+		objList = pm.selected()
+	if allhierarchy == 1:
+		objList.append(pm.listRelatives(children=1, ad=1, type='transform'))
+	pm.delete(pm.listConnections(objList, type='constraint'))

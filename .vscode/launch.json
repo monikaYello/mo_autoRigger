@@ -16,7 +16,7 @@
             "request": "attach",
             "localRoot": "${workspaceFolder}",
             "remoteRoot": "${workspaceFolder}",
-            "port": 3000,
+            "port": 7002,
             "secret": "my_secret",
             "host": "localhost"
         },
