@@ -444,3 +444,90 @@ def deleteExisting(node):
 		return True
 	else:
 		return False
+
+''''
+# below Mocappy suggested joint orient and rotation order
+#TODO update to meet my rig naming
+
+def orientJoint():
+	# based on http://mocappys.com/how-to-rig-a-character-for-motionbuilder/#.XIEicChKj4b
+	#hips
+	jnts = pm.ls('*:Hips*')
+	pm.select(jnts)
+	pm.joint(zso=1, e=1, oj='yzx', secondaryAxisOrient='xup')
+
+	#spine + hierarchy (head)
+	jnts = pm.ls('*:Spine*')
+	pm.select(jnts)
+	pm.joint(zso=1, e=1, oj='xzy', secondaryAxisOrient='xup', ch=1)
+
+	#arms
+	jnts = pm.ls('*:*Arm*') + pm.ls('*:Clavicle*')
+	pm.select(jnts)
+	pm.joint(zso=1, e=1, oj='xzy', secondaryAxisOrient='ydown', ch=1)
+
+	#hand and finger
+	jnts = pm.ls('*:*Hand*')
+	pm.select(jnts)
+	pm.joint(zso=1, e=1, oj='xzy', secondaryAxisOrient='zdown', ch=1)
+
+	#thumb
+	jnts = pm.ls('*:*Thumb*')
+	pm.select(jnts)
+	pm.joint(zso=1, e=1, oj='xzy', secondaryAxisOrient='ydown')
+
+	#leg
+	jnts = pm.ls('*:*Leg*')
+	pm.select(jnts)
+	pm.joint(zso=1, e=1, oj='xzy', secondaryAxisOrient='xup', ch=1)
+
+def setRotationOrder():
+	# rotation order
+	
+	# xyz-0
+	# yzx-1
+	# zxy-2
+	# xzy-3
+	# yxz-4
+	# zyx-5
+	
+
+	#hips
+	jnts = pm.ls('*:Hips*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(3)
+		
+	#spine
+	jnts = pm.ls('*:Spine*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(0)
+	#head
+	jnts = pm.ls('*:Head*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(3)
+	#clavicle
+	jnts = pm.ls('*:Clavicle*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(3)
+	#UpperArm
+	jnts = pm.ls('*:UpperArm*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(3)
+	#UpperArm
+	jnts = pm.ls('*:LowerArm*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(3)
+	#hand and finger
+	jnts = pm.ls('*:*Hand*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(4)
+	#thumb
+	jnts = pm.ls('*:*Thumb*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(0)
+	#leg
+	jnts = pm.ls('*:*Leg*')
+	for jnt in jnts:
+		jnt.rotateOrder.set(0)
+
+'''
