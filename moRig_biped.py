@@ -75,7 +75,7 @@ arm.setup_ik_arm(jntsDic, RL='L')
 arm.setup_ikfkSwitch_arm(jntsDic)
 
 # spine
-biped.create_ctrl_spine(jntsDic, spine_count=3, scale=scale*2)
+spine.create_ctrl_spine(jntsDic, spine_count=3, scale=scale*2)
 spine.setup_spine(jntsDic)
 
 # space switch

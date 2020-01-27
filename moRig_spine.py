@@ -110,7 +110,7 @@ def create_ctrl_spine(jnts, spine_count=4, scale=1):
     # fk spine
 
     log_debug('creating fk spine ctrls %s' % spine_count)
-    spine_fk_jnts = pm.ls('C_spine*_fkJnt')
+    spine_fk_jnts = pm.ls('C_spine*_ctrlJnt')
 
     if len(spine_fk_jnts) == 0:
         log_info("No spine*_fkJnts found. Skipping")
@@ -157,6 +157,8 @@ def create_ctrl_spine(jnts, spine_count=4, scale=1):
 
         # align spineMid halfway between pelvis and chest
         pm.parentConstraint([jnts['pelvis01']['ctrl'], jnts['chest01']['ctrl']], jnts['spine02']['ikCtrl'].AUTO.get(), mo=1)
+    
+    log_debug('done create_ctrl_spine')
 
 
 
